@@ -43,20 +43,10 @@ pub const PRESET_UMUM: Preset = Preset {
     margins_cm: (4.0, 3.0, 3.0, 3.0),
 };
 
-/// Preset "UNPAM": sama dengan Standar Umum, kecuali margin kiri 4 cm
-/// (format skripsi umum Indonesia; koreksi kalau pedoman UNPAM beda).
-pub const PRESET_UNPAM: Preset = Preset {
-    font: "Times New Roman",
-    size_pt: 12.0,
-    line_spacing: 1.5,
-    margins_cm: (4.0, 3.0, 3.0, 4.0),
-};
-
-/// Baca preset dari nama yang dikirim shell web.
+/// Baca preset dari nama yang dikirim shell web. Satu preset universal.
 pub fn preset(name: &str) -> Result<Preset, String> {
     match name {
         "umum" => Ok(PRESET_UMUM),
-        "unpam" => Ok(PRESET_UNPAM),
         other => Err(format!("Preset tidak dikenal: {other}")),
     }
 }
@@ -658,15 +648,6 @@ mod tests {
         assert!((margins.3.to_cm() - 3.0).abs() < 0.1);
         assert_eq!(doc.default_font_name(), Some("Times New Roman"));
         assert!((doc.default_font_size().unwrap().to_pt() - 12.0).abs() < 0.01);
-    }
-
-    #[test]
-    fn preset_unpam_margin_kiri_empat() {
-        let original = fixture("campuran.docx");
-        let fixed = fix_docx(&original, "unpam").unwrap();
-        let doc = Document::from_bytes(&fixed).unwrap();
-        let margins = doc.sections().next().unwrap().margins().unwrap();
-        assert!((margins.3.to_cm() - 4.0).abs() < 0.1);
     }
 
     #[test]

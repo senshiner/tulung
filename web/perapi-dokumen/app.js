@@ -32,18 +32,7 @@ const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingm
 let docFile = null; // { name, data: Uint8Array }
 let wasmPromise = null;
 let docUrl = null;
-let preset = 'umum';
-
-document.querySelectorAll('.option-buttons').forEach((group) => {
-  group.addEventListener('click', async (event) => {
-    const button = event.target.closest('.option-btn');
-    if (!button) return;
-    group.querySelectorAll('.option-btn').forEach((b) => b.classList.remove('selected'));
-    button.classList.add('selected');
-    preset = button.dataset.value;
-    if (docFile) await scanDocument();
-  });
-});
+const preset = 'umum'; // Satu standar universal, bukan per kampus.
 
 function loadWasm() {
   if (!wasmPromise) {
