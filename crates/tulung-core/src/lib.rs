@@ -10,6 +10,8 @@ use printpdf::{
 };
 use wasm_bindgen::prelude::*;
 
+mod docx;
+
 /// Versi tulung-core yang sedang berjalan di browser.
 #[wasm_bindgen]
 pub fn tulung_version() -> String {
@@ -217,6 +219,19 @@ pub fn images_to_pdf(
     }
     build_pdf_from_images_with_options(&decoded, &options)
         .map_err(|err| JsValue::from_str(&err))
+}
+
+/// Perapi Dokumen: pindai .docx terhadap preset, kembalikan laporan
+/// sebagai JSON string (dipanggil shell web `web/perapi-dokumen/app.js`).
+#[wasm_bindgen]
+pub fn scan_docx(bytes: &[u8], preset: &str) -> Result<String, JsValue> {
+    docx::scan_docx(bytes, preset).map_err(|err| JsValue::from_str(&err))
+}
+
+/// Perapi Dokumen: perbaiki .docx sesuai preset, kembalikan byte .docx.
+#[wasm_bindgen]
+pub fn fix_docx(bytes: &[u8], preset: &str) -> Result<Vec<u8>, JsValue> {
+    docx::fix_docx(bytes, preset).map_err(|err| JsValue::from_str(&err))
 }
 
 #[cfg(test)]
