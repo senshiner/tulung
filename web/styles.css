@@ -1,0 +1,194 @@
+/* Tulung: gaya neobrutalism, dipertahankan dari repo my-pdf.
+   Token: Space Mono, border 3px hitam, bayangan keras 4px,
+   primary #FF3366, secondary #3300FF, accent #33FFCC, bg #f5f5f5. */
+
+:root {
+  --primary: #ff3366;
+  --secondary: #3300ff;
+  --accent: #33ffcc;
+  --bg: #f5f5f5;
+  --ink: #000000;
+  --paper: #ffffff;
+  --highlight: #fef3c7;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Space Mono', monospace;
+  background-color: var(--bg);
+  color: var(--ink);
+  margin: 0;
+}
+
+a { color: var(--secondary); }
+
+.brutal-border {
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 1);
+}
+
+.brutal-btn {
+  transition: transform 0.1s ease-in-out;
+  cursor: pointer;
+}
+
+.brutal-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 rgba(0, 0, 0, 1);
+}
+
+.brutal-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 1);
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.hero {
+  text-align: center;
+  padding: 48px 16px 32px;
+}
+
+.hero h1 {
+  font-size: 64px;
+  line-height: 1;
+  margin: 0 0 12px;
+}
+
+.hero p { font-size: 20px; margin: 8px 0; }
+
+.badge {
+  display: inline-block;
+  border: 2px solid var(--ink);
+  padding: 2px 10px;
+  font-weight: 700;
+  background: var(--paper);
+}
+
+.tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  padding: 24px 16px;
+}
+
+.tool-card {
+  background: var(--paper);
+  padding: 24px;
+}
+
+.tool-card h2 { margin: 0 0 8px; font-size: 24px; }
+.tool-card p { margin: 0 0 16px; }
+
+.tool-card .status {
+  display: inline-block;
+  padding: 2px 10px;
+  font-weight: 700;
+  border: 2px solid var(--ink);
+  margin-bottom: 16px;
+}
+
+.status-ready { background: var(--accent); }
+.status-soon { background: var(--highlight); }
+
+.tool-card a.btn,
+.tool-card button.btn {
+  display: inline-block;
+  padding: 10px 18px;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 16px;
+  text-decoration: none;
+  color: #fff;
+  background: var(--primary);
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 1);
+}
+
+.tool-card a.btn:hover,
+.tool-card button.btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 rgba(0, 0, 0, 1);
+}
+
+.tool-card a.btn:disabled,
+.tool-card button.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.drop-area {
+  border: 3px dashed var(--ink);
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.drop-area.highlight { background-color: var(--highlight); }
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.preview-item {
+  background: var(--bg);
+  padding: 8px;
+  position: relative;
+}
+
+.preview-item img {
+  width: 100%;
+  max-height: 150px;
+  object-fit: contain;
+  display: block;
+}
+
+.preview-item p {
+  font-size: 12px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-item .remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--ink);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+input[type="text"] {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+}
+
+.section {
+  background: var(--paper);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+footer {
+  border-top: 3px solid var(--ink);
+  background: var(--paper);
+  text-align: center;
+  padding: 24px 16px;
+  margin-top: 48px;
+}
