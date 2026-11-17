@@ -1,4 +1,4 @@
-// Perapi Dokumen: shell web untuk tulung-core (WASM).
+// Doc Format: shell web untuk tulung-core (WASM).
 // Alur: baca .docx sebagai byte -> pindai dengan scan_docx() di WASM
 // -> tampilkan daftar masalah -> perbaiki dengan fix_docx() -> unduh
 // + pindai ulang hasil perbaikan. Tidak ada server; isi dokumen
@@ -18,6 +18,8 @@ const presetSection = document.getElementById('preset-section');
 const scanSection = document.getElementById('scan-section');
 const scanSummary = document.getElementById('scan-summary');
 const issueList = document.getElementById('issue-list');
+const selectAllBtn = document.getElementById('select-all');
+const selectNoneBtn = document.getElementById('select-none');
 const fixBtn = document.getElementById('fix-btn');
 const loadingEl = document.getElementById('loading');
 const errorEl = document.getElementById('error');
@@ -26,12 +28,16 @@ const filenameInput = document.getElementById('filename');
 const downloadLink = document.getElementById('download-link');
 const rescanResult = document.getElementById('rescan-result');
 const remainingList = document.getElementById('remaining-list');
+const compareSection = document.getElementById('compare-section');
+const compareBody = document.getElementById('compare-body');
+const textVerdict = document.getElementById('text-verdict');
 
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 let docFile = null; // { name, data: Uint8Array }
 let wasmPromise = null;
 let docUrl = null;
+let lastReport = null; // Laporan pindai sebelum perbaikan (untuk banding).
 const preset = 'umum'; // Satu standar universal, bukan per kampus.
 
 function loadWasm() {
@@ -63,16 +69,25 @@ function joinCounted(items) {
   return items.map((item) => `${item.value} (${item.count})`).join(', ') || '-';
 }
 
-function renderReport(report) {
+function summaryLines(report) {
   const margins = report.margins_cm
     ? report.margins_cm.map((m) => m.toFixed(1).replace('.', ',')).join('-')
     : '-';
+  return [
+    `Font: ${joinCounted(report.fonts)}`,
+    `Ukuran: ${joinCounted(report.sizes)}`,
+    `Spasi: ${joinCounted(report.spacings)}`,
+    `Margin: ${margins} cm`,
+  ];
+}
+
+function renderReport(report) {
   scanSummary.innerHTML = `
     <p><strong>Paragraf:</strong> ${report.paragraphs} &middot; <strong>Tabel:</strong> ${report.tables} &middot; <strong>Section:</strong> ${report.sections}</p>
     <p><strong>Font:</strong> ${joinCounted(report.fonts)}</p>
     <p><strong>Ukuran:</strong> ${joinCounted(report.sizes)}</p>
     <p><strong>Spasi:</strong> ${joinCounted(report.spacings)}</p>
-    <p><strong>Margin:</strong> ${margins} cm</p>
+    <p><strong>Margin:</strong> ${report.margins_cm ? report.margins_cm.map((m) => m.toFixed(1).replace('.', ',')).join('-') : '-'} cm</p>
   `;
   issueList.innerHTML = '';
   const actionable = report.issues.filter((issue) => issue.kind !== 'info');
@@ -81,12 +96,52 @@ function renderReport(report) {
   } else {
     report.issues.forEach((issue) => {
       const item = document.createElement('li');
-      item.textContent = issue.kind === 'info' ? `Catatan: ${issue.message}` : issue.message;
+      if (issue.kind === 'info') {
+        item.textContent = `Catatan: ${issue.message}`;
+      } else {
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.id = issue.id;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', updateFixButton);
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(` ${issue.message}`));
+        item.appendChild(label);
+      }
       issueList.appendChild(item);
     });
   }
-  fixBtn.disabled = actionable.length === 0;
+  updateFixButton();
 }
+
+function selectedIds() {
+  return Array.from(issueList.querySelectorAll('input[type="checkbox"]:checked'))
+    .map((box) => box.dataset.id);
+}
+
+function updateFixButton() {
+  fixBtn.disabled = selectedIds().length === 0;
+}
+
+function renderCompare(before, after) {
+  const beforeLines = summaryLines(before);
+  const afterLines = summaryLines(after);
+  compareBody.innerHTML = `
+    <p><strong>Sebelum:</strong><br>${beforeLines.join('<br>')}</p>
+    <p><strong>Sesudah:</strong><br>${afterLines.join('<br>')}</p>
+  `;
+  compareSection.style.display = 'block';
+}
+
+selectAllBtn.addEventListener('click', () => {
+  issueList.querySelectorAll('input[type="checkbox"]').forEach((box) => { box.checked = true; });
+  updateFixButton();
+});
+selectNoneBtn.addEventListener('click', () => {
+  issueList.querySelectorAll('input[type="checkbox"]').forEach((box) => { box.checked = false; });
+  updateFixButton();
+});
 
 async function scanDocument() {
   hideError();
@@ -96,6 +151,7 @@ async function scanDocument() {
   try {
     const { scan_docx } = await loadWasm();
     const report = JSON.parse(scan_docx(docFile.data, preset));
+    lastReport = report;
     renderReport(report);
     scanSection.style.display = 'block';
     resultSection.style.display = 'none';
@@ -160,8 +216,9 @@ fixBtn.addEventListener('click', async () => {
   loadingEl.textContent = 'Memperbaiki dokumen...';
   loadingEl.style.display = 'block';
   try {
-    const { fix_docx, scan_docx } = await loadWasm();
-    const fixedBytes = fix_docx(docFile.data, preset);
+    const { fix_docx, scan_docx, docx_text } = await loadWasm();
+    const textBefore = docx_text(docFile.data);
+    const fixedBytes = fix_docx(docFile.data, preset, JSON.stringify(selectedIds()));
     const blob = new Blob([fixedBytes], { type: DOCX_TYPE });
     if (docUrl) URL.revokeObjectURL(docUrl);
     docUrl = URL.createObjectURL(blob);
@@ -180,13 +237,19 @@ fixBtn.addEventListener('click', async () => {
       item.textContent = issue.kind === 'info' ? `Catatan: ${issue.message}` : issue.message;
       remainingList.appendChild(item);
     });
+    // Banding sebelum/sesudah: ringkasan format + bukti isi tidak berubah.
+    if (lastReport) renderCompare(lastReport, report);
+    const textAfter = docx_text(fixedBytes);
+    textVerdict.textContent = textBefore === textAfter
+      ? 'Isi identik kata per kata: teks sebelum dan sesudah perbaikan sama.'
+      : 'Perhatian: teks dokumen berubah saat perbaikan. Periksa hasil unduhan.';
     // Tampilkan hasil pindai ulang sebagai laporan saat ini.
     renderReport(report);
     resultSection.style.display = 'block';
     resultSection.scrollIntoView({ behavior: 'smooth' });
   } catch (error) {
     showError(`Gagal memperbaiki dokumen: ${error}. Coba muat ulang halaman.`);
-    fixBtn.disabled = false;
+    updateFixButton();
   } finally {
     loadingEl.style.display = 'none';
   }
