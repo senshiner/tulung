@@ -221,17 +221,27 @@ pub fn images_to_pdf(
         .map_err(|err| JsValue::from_str(&err))
 }
 
-/// Perapi Dokumen: pindai .docx terhadap preset, kembalikan laporan
-/// sebagai JSON string (dipanggil shell web `web/perapi-dokumen/app.js`).
+/// Doc Format: pindai .docx terhadap preset, kembalikan laporan
+/// sebagai JSON string (dipanggil shell web `web/doc-format/app.js`).
 #[wasm_bindgen]
 pub fn scan_docx(bytes: &[u8], preset: &str) -> Result<String, JsValue> {
     docx::scan_docx(bytes, preset).map_err(|err| JsValue::from_str(&err))
 }
 
-/// Perapi Dokumen: perbaiki .docx sesuai preset, kembalikan byte .docx.
+/// Doc Format: seluruh teks dokumen sebagai string, untuk mode
+/// banding sebelum/sesudah (memastikan isi tidak berubah).
 #[wasm_bindgen]
-pub fn fix_docx(bytes: &[u8], preset: &str) -> Result<Vec<u8>, JsValue> {
-    docx::fix_docx(bytes, preset).map_err(|err| JsValue::from_str(&err))
+pub fn docx_text(bytes: &[u8]) -> Result<String, JsValue> {
+    docx::docx_text(bytes).map_err(|err| JsValue::from_str(&err))
+}
+/// Doc Format: perbaiki .docx sesuai preset, kembalikan byte .docx.
+/// `selected_json` berisi array JSON id temuan yang dicentang pengguna;
+/// array kosong berarti perbaiki semua temuan yang bisa diperbaiki.
+#[wasm_bindgen]
+pub fn fix_docx(bytes: &[u8], preset: &str, selected_json: &str) -> Result<Vec<u8>, JsValue> {
+    let selected: Vec<String> = serde_json::from_str(selected_json)
+        .map_err(|err| JsValue::from_str(&format!("Pilihan perbaikan tidak valid: {err}")))?;
+    docx::fix_docx(bytes, preset, &selected).map_err(|err| JsValue::from_str(&err))
 }
 
 #[cfg(test)]
