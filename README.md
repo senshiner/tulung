@@ -65,7 +65,7 @@ crates/tulung-core/    Mesin Rust, dikompilasi ke WebAssembly
 
 - **Tahap 0, Fondasi:** repo, workspace Cargo, shell web, CI. (selesai)
 - **Tahap 1, Gambar ke PDF:** port my-pdf ke Rust + WASM, perbaiki bug endpoint dan gambar tinggi. (selesai)
-- **Tahap 2, Perapi Dokumen:** pindai .docx, rapor checklist, perbaiki satu klik, isi identik kata per kata.
+- **Tahap 2, Perapi Dokumen:** pindai .docx, rapor checklist, perbaiki satu klik, isi identik kata per kata. (selesai)
 - **Tahap 3, Tulis Tangan:** teks jadi PDF tulisan tangan.
 - **Tahap 4, Profil dan berbagi:** profil pedoman kustom, share lewat link, mode banding sebelum/sesudah.
 
