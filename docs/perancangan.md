@@ -59,9 +59,11 @@ Port dari my-pdf (Next.js) ke Rust + WASM. Yang diperbaiki dari my-pdf:
 - Hasil: tool pertama yang bisa dipakai.
 
 ### Tahap 2, Perapi Dokumen (.docx)
-Alur: upload .docx, pindai (font, ukuran, spasi, margin, heading), rapor checklist masalah, centang yang mau diperbaiki, perbaiki satu klik, unduh hasil.
+Alur: upload .docx, pindai (font, ukuran, spasi, margin, heading), rapor checklist masalah, perbaiki satu klik, unduh hasil. Pindai ulang hasil perbaikan harus 0 masalah.
 - Janji inti: isi identik kata per kata, hanya format yang berubah.
-- Preset: standar umum dan UNPAM.
+- Preset: Standar Umum (TNR 12, spasi 1,5, margin atas 4 kanan 3 bawah 3 kiri 3 cm) dan UNPAM (sama, margin kiri 4 cm — format skripsi umum Indonesia; koreksi kalau pedoman UNPAM beda).
+- Mesin: `rdocx` 0.17.0 (`default-features = false` + `system-fonts`). `docx-rs` 0.4.22 DITOLAK: hasil tulis-ulangnya tidak bisa dibuka LibreOffice (referensi header/footer menggantung, gambar 0 byte). Catatan build: `printpdf` menarik `fontdb` dengan fitur `fs` lewat `usvg`; tanpa `system-fonts`, `oxml-layout` gagal kompilasi (match `fontdb::Source` tidak lengkap). Jangan cabut fitur itu.
+- Aturan perbaikan: paragraf isi diubah font + ukuran + spasi; heading hanya diubah font-nya (ukuran dan spasi dipertahankan); run berukuran 14 pt ke atas dianggap judul — font diseragamkan, ukuran dipertahankan (tanpa ini judul sampul makalah ikut mengecil); semua section diubah marginnya; font bawaan dokumen (docDefaults) ikut diubah supaya run tanpa format eksplisit berubah. Header/footer hanya dilaporkan, tidak diubah (rdocx 0.17 tidak membuka API tulis untuk itu).
 - Daftar isi, daftar tabel, daftar gambar dibuat ulang (Tahap 2 akhir atau Tahap 4).
 - Mode banding sebelum/sesudah (Tahap 4).
 
