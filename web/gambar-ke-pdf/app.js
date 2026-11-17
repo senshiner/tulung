@@ -1,8 +1,10 @@
 // Gambar ke PDF: shell web untuk tulung-core (WASM).
 // Alur: baca file sebagai byte -> kirim ke images_to_pdf() di WASM
 // -> terima byte PDF -> unduh + pratinjau. Tidak ada server.
-
-import init, { images_to_pdf } from '../pkg/tulung_core.js';
+//
+// WASM dimuat dinamis di dalam handler konversi, bukan import statis di
+// atas: kalau modul WASM gagal dimuat, pemilih gambar tetap jalan dan
+// pengguna dapat pesan error yang jelas, bukan halaman yang diam saja.
 
 const dropArea = document.getElementById('drop-area');
 const fileInput = document.getElementById('file-input');
@@ -19,9 +21,21 @@ const filenameInput = document.getElementById('filename');
 const downloadLink = document.getElementById('download-link');
 const pdfPreview = document.getElementById('pdf-preview');
 
+const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|bmp|gif)$/i;
+
 let images = []; // { name, data: Uint8Array, url: string }
-let wasmReady = init();
+let wasmPromise = null;
 let pdfUrl = null;
+
+function loadWasm() {
+  if (!wasmPromise) {
+    wasmPromise = import('../pkg/tulung_core.js').then(async (mod) => {
+      await mod.default();
+      return mod;
+    });
+  }
+  return wasmPromise;
+}
 
 function showError(message) {
   errorEl.textContent = message;
@@ -30,6 +44,13 @@ function showError(message) {
 
 function hideError() {
   errorEl.style.display = 'none';
+}
+
+function moveImage(from, to) {
+  if (to < 0 || to >= images.length) return;
+  const [moved] = images.splice(from, 1);
+  images.splice(to, 0, moved);
+  renderPreviews();
 }
 
 function renderPreviews() {
@@ -43,12 +64,16 @@ function renderPreviews() {
       <img src="${img.url}" alt="${img.name}">
       <p>${index + 1}. ${img.name}</p>
       <button class="remove" title="Hapus">x</button>
+      <button class="move move-up" title="Geser ke atas" ${index === 0 ? 'disabled' : ''}>&uarr;</button>
+      <button class="move move-down" title="Geser ke bawah" ${index === images.length - 1 ? 'disabled' : ''}>&darr;</button>
     `;
     item.querySelector('.remove').addEventListener('click', () => {
       URL.revokeObjectURL(img.url);
       images.splice(index, 1);
       renderPreviews();
     });
+    item.querySelector('.move-up').addEventListener('click', () => moveImage(index, index - 1));
+    item.querySelector('.move-down').addEventListener('click', () => moveImage(index, index + 1));
     item.addEventListener('dragstart', (event) => {
       event.dataTransfer.setData('text/plain', index);
     });
@@ -56,9 +81,7 @@ function renderPreviews() {
     item.addEventListener('drop', (event) => {
       event.preventDefault();
       const from = Number(event.dataTransfer.getData('text/plain'));
-      const [moved] = images.splice(from, 1);
-      images.splice(index, 0, moved);
-      renderPreviews();
+      moveImage(from, index);
     });
     previewGrid.appendChild(item);
   });
@@ -69,9 +92,15 @@ function renderPreviews() {
   if (!images.length) resultSection.style.display = 'none';
 }
 
+function isImageFile(file) {
+  // Sebagian pemilih file di Android mengembalikan type kosong; cek
+  // ekstensi sebagai cadangan agar gambar tetap diterima.
+  return file.type.startsWith('image/') || IMAGE_EXTENSIONS.test(file.name);
+}
+
 async function addFiles(fileList) {
   hideError();
-  const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+  const files = Array.from(fileList).filter(isImageFile);
   if (!files.length) {
     showError('Pilih file gambar (JPG, PNG, WebP, BMP, GIF).');
     return;
@@ -87,10 +116,11 @@ async function addFiles(fileList) {
   renderPreviews();
 }
 
-dropArea.addEventListener('click', (event) => {
-  if (event.target === dropArea || event.target.closest('p')) fileInput.click();
+fileInput.addEventListener('change', () => {
+  addFiles(fileInput.files);
+  // Kosongkan value supaya file yang sama bisa dipilih lagi.
+  fileInput.value = '';
 });
-fileInput.addEventListener('change', () => addFiles(fileInput.files));
 dropArea.addEventListener('dragover', (event) => {
   event.preventDefault();
   dropArea.classList.add('highlight');
@@ -112,7 +142,7 @@ convertBtn.addEventListener('click', async () => {
   convertBtn.disabled = true;
   loadingEl.style.display = 'block';
   try {
-    await wasmReady;
+    const { images_to_pdf } = await loadWasm();
     const pdfBytes = images_to_pdf(images.map((img) => img.data));
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
@@ -124,7 +154,7 @@ convertBtn.addEventListener('click', async () => {
     resultSection.style.display = 'block';
     resultSection.scrollIntoView({ behavior: 'smooth' });
   } catch (error) {
-    showError(`Gagal membuat PDF: ${error}`);
+    showError(`Gagal membuat PDF: ${error}. Coba muat ulang halaman.`);
   } finally {
     loadingEl.style.display = 'none';
     convertBtn.disabled = images.length === 0;
