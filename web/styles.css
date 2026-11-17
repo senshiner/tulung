@@ -233,6 +233,20 @@ a { color: var(--secondary); }
   gap: 8px;
 }
 
+.option-group { margin-top: 20px; }
+.option-group:first-child { margin-top: 0; }
+.option-label { font-weight: 700; margin: 0 0 8px; }
+.option-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.option-btn {
+  padding: 8px 14px;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  background: var(--paper);
+}
+
+.option-btn.selected { background: var(--ink); color: #fff; }
+
 .result-row input[type="text"] { flex: 1; min-width: 160px; }
 
 #pdf-preview { height: 600px; }
@@ -277,6 +291,8 @@ footer p { margin: 0; }
   .convert-btn { width: 100%; max-width: 340px; font-size: 18px; }
 
   .preview-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+
+  .option-btn { flex: 1 1 auto; }
 
   #pdf-preview { height: 420px; }
 

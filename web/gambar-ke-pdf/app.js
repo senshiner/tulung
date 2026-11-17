@@ -9,6 +9,7 @@
 const dropArea = document.getElementById('drop-area');
 const fileInput = document.getElementById('file-input');
 const previewSection = document.getElementById('preview-section');
+const optionsSection = document.getElementById('options-section');
 const previewGrid = document.getElementById('preview-grid');
 const countEl = document.getElementById('count');
 const summaryEl = document.getElementById('summary');
@@ -26,6 +27,19 @@ const IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|bmp|gif)$/i;
 let images = []; // { name, data: Uint8Array, url: string }
 let wasmPromise = null;
 let pdfUrl = null;
+
+// Opsi halaman, default mengikuti iLovePDF: potret, A4, tanpa margin.
+const options = { orientation: 'portrait', pageSize: 'a4', margin: 'none' };
+
+document.querySelectorAll('.option-buttons').forEach((group) => {
+  group.addEventListener('click', (event) => {
+    const button = event.target.closest('.option-btn');
+    if (!button) return;
+    group.querySelectorAll('.option-btn').forEach((b) => b.classList.remove('selected'));
+    button.classList.add('selected');
+    options[group.dataset.option] = button.dataset.value;
+  });
+});
 
 function loadWasm() {
   if (!wasmPromise) {
@@ -88,6 +102,7 @@ function renderPreviews() {
   countEl.textContent = images.length;
   summaryEl.textContent = `${images.length} gambar`;
   previewSection.style.display = images.length ? 'block' : 'none';
+  optionsSection.style.display = images.length ? 'block' : 'none';
   convertBtn.disabled = images.length === 0;
   if (!images.length) resultSection.style.display = 'none';
 }
@@ -143,7 +158,12 @@ convertBtn.addEventListener('click', async () => {
   loadingEl.style.display = 'block';
   try {
     const { images_to_pdf } = await loadWasm();
-    const pdfBytes = images_to_pdf(images.map((img) => img.data));
+    const pdfBytes = images_to_pdf(
+      images.map((img) => img.data),
+      options.orientation,
+      options.pageSize,
+      options.margin,
+    );
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     pdfUrl = URL.createObjectURL(blob);
