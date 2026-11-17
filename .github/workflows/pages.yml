@@ -28,7 +28,11 @@ jobs:
         with:
           # Dipin ke versi yang terverifikasi lokal (lihat ci.yml).
           version: v0.15.1
-      - run: wasm-pack build --target web --out-dir web/pkg crates/tulung-core
+      # --out-dir dihitung dari direktori crate (crates/tulung-core),
+      # jadi ../../web/pkg = web/pkg di root repo. Tanpa ../../,
+      # pkg jatuh di crates/tulung-core/web/pkg dan tidak ikut ter-deploy.
+      - run: wasm-pack build --target web --out-dir ../../web/pkg crates/tulung-core
+      - run: ls web/pkg/tulung_core.js
       - uses: actions/configure-pages@v5
         with:
           # Aktifkan Pages otomatis kalau repo belum pernah diaktifkan.
