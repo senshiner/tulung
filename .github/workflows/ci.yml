@@ -16,6 +16,9 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
-          version: latest
+          # Dipin ke versi yang terverifikasi lokal. `latest` di action ini
+          # memasang wasm-pack 0.9.1, yang wasm-opt-nya terlalu tua untuk
+          # .wasm dari rustc 1.100 (gagal "error in parsing input").
+          version: v0.15.1
       - run: cargo test --workspace
       - run: wasm-pack build --target web --out-dir web/pkg crates/tulung-core
