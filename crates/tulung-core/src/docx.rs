@@ -18,37 +18,70 @@
 use std::collections::{BTreeMap, HashSet};
 
 use rdocx::{Document, Length};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Run dengan ukuran sebesar ini atau lebih dianggap judul: font-nya
 /// diseragamkan, ukurannya dipertahankan (lihat catatan modul).
 const TITLE_MIN_SIZE_PT: f64 = 14.0;
 
-/// Preset format.
-#[derive(Clone, Copy, Debug)]
-pub struct Preset {
-    pub font: &'static str,
-    pub size_pt: f64,
-    pub line_spacing: f64,
-    /// Margin (atas, kanan, bawah, kiri) dalam cm.
-    pub margins_cm: (f32, f32, f32, f32),
+/// Profil pedoman format. Setiap aturan opsional: None berarti aspek
+/// itu tidak diminta diubah (kolom dikosongkan di formulir profil).
+/// Formulir mengisi semua kolom dengan angka default standar umum di
+/// awal; pengguna boleh memakai default atau mengosongkannya.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Profile {
+    pub name: String,
+    pub font: Option<String>,
+    pub size_pt: Option<f64>,
+    pub line_spacing: Option<f64>,
+    pub margin_top_cm: Option<f32>,
+    pub margin_right_cm: Option<f32>,
+    pub margin_bottom_cm: Option<f32>,
+    pub margin_left_cm: Option<f32>,
+    pub heading_font: Option<String>,
 }
 
-/// Preset "Standar Umum": Times New Roman 12, spasi 1,5,
-/// margin atas 4, kanan 3, bawah 3, kiri 3 cm.
-pub const PRESET_UMUM: Preset = Preset {
-    font: "Times New Roman",
-    size_pt: 12.0,
-    line_spacing: 1.5,
-    margins_cm: (4.0, 3.0, 3.0, 3.0),
-};
+impl Profile {
+    /// Margin (atas, kanan, bawah, kiri) dalam cm, per sisi opsional.
+    fn margins(&self) -> (Option<f32>, Option<f32>, Option<f32>, Option<f32>) {
+        (
+            self.margin_top_cm,
+            self.margin_right_cm,
+            self.margin_bottom_cm,
+            self.margin_left_cm,
+        )
+    }
+}
 
-/// Baca preset dari nama yang dikirim shell web. Satu preset universal.
-pub fn preset(name: &str) -> Result<Preset, String> {
+/// Profil "Standar Umum": Times New Roman 12, spasi 1,5,
+/// margin atas 4, kanan 3, bawah 3, kiri 3 cm.
+pub fn builtin_profile() -> Profile {
+    Profile {
+        name: "Standar Umum".to_string(),
+        font: Some("Times New Roman".to_string()),
+        size_pt: Some(12.0),
+        line_spacing: Some(1.5),
+        margin_top_cm: Some(4.0),
+        margin_right_cm: Some(3.0),
+        margin_bottom_cm: Some(3.0),
+        margin_left_cm: Some(3.0),
+        heading_font: Some("Times New Roman".to_string()),
+    }
+}
+
+/// Baca preset bawaan dari nama yang dikirim shell web.
+/// Satu preset universal.
+pub fn preset(name: &str) -> Result<Profile, String> {
     match name {
-        "umum" => Ok(PRESET_UMUM),
+        "umum" => Ok(builtin_profile()),
         other => Err(format!("Preset tidak dikenal: {other}")),
     }
+}
+
+/// Baca profil kustom dari JSON yang dikirim shell web (formulir
+/// profil). Kolom kosong di JSON berarti None (aspek itu tidak diubah).
+pub fn profile_from_json(json: &str) -> Result<Profile, String> {
+    serde_json::from_str(json).map_err(|err| format!("Profil tidak valid: {err}"))
 }
 
 /// Satu baris hitungan untuk laporan: nilai tampil + jumlah kemunculan.
@@ -61,7 +94,7 @@ pub struct Counted {
 /// Satu temuan dalam laporan. `id` dipakai shell web untuk memilih
 /// temuan mana yang diperbaiki (misal `font:Calibri`, `size:11`,
 /// `spacing:1`, `spacing:tidak-diatur`, `margin`, `default-font`).
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Issue {
     /// Jenis: font, size, spacing, margin, heading, info.
     pub kind: &'static str,
@@ -106,24 +139,6 @@ fn fmt_num(value: f64) -> String {
     } else {
         format!("{value:.1}").replace('.', ",")
     }
-}
-
-fn fmt_margins(margins: (f32, f32, f32, f32)) -> String {
-    format!(
-        "{}-{}-{}-{}",
-        fmt_num(margins.0 as f64),
-        fmt_num(margins.1 as f64),
-        fmt_num(margins.2 as f64),
-        fmt_num(margins.3 as f64),
-    )
-}
-
-fn margins_close(a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)) -> bool {
-    // Toleransi 1 mm (pembulatan twips).
-    (a.0 - b.0).abs() < 0.1
-        && (a.1 - b.1).abs() < 0.1
-        && (a.2 - b.2).abs() < 0.1
-        && (a.3 - b.3).abs() < 0.1
 }
 
 fn is_heading(style_id: Option<&str>) -> bool {
@@ -172,14 +187,23 @@ fn para_stat(p: &rdocx::ParagraphRef) -> ParaStat {
 
 /// Pindai .docx dan laporkan temuan terhadap preset, sebagai JSON.
 pub fn scan_docx(bytes: &[u8], preset_name: &str) -> Result<String, String> {
-    let preset = preset(preset_name)?;
+    let profile = preset(preset_name)?;
     let doc = Document::from_bytes(bytes)
         .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
-    let report = scan(&doc, &preset);
+    let report = scan(&doc, &profile);
     serde_json::to_string(&report).map_err(|err| err.to_string())
 }
 
-fn scan(doc: &Document, preset: &Preset) -> ScanReport {
+/// Pindai .docx terhadap profil kustom (JSON), sebagai JSON.
+pub fn scan_docx_profile(bytes: &[u8], profile_json: &str) -> Result<String, String> {
+    let profile = profile_from_json(profile_json)?;
+    let doc = Document::from_bytes(bytes)
+        .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
+    let report = scan(&doc, &profile);
+    serde_json::to_string(&report).map_err(|err| err.to_string())
+}
+
+fn scan(doc: &Document, profile: &Profile) -> ScanReport {
     let paras = collect_paragraphs(doc);
     let mut fonts: BTreeMap<String, usize> = BTreeMap::new();
     let mut sizes: BTreeMap<String, usize> = BTreeMap::new();
@@ -205,6 +229,7 @@ fn scan(doc: &Document, preset: &Preset) -> ScanReport {
     }
 
     // Temuan font (paragraf isi + heading dipisah pesannya).
+    // Aspek yang tidak diatur profil (None) tidak dilaporkan.
     let mut font_issue: BTreeMap<String, usize> = BTreeMap::new();
     let mut heading_font_issue: BTreeMap<String, usize> = BTreeMap::new();
     let mut size_issue: BTreeMap<String, usize> = BTreeMap::new();
@@ -213,11 +238,14 @@ fn scan(doc: &Document, preset: &Preset) -> ScanReport {
     for para in &paras {
         for (font, size) in &para.runs {
             if let Some(name) = font {
-                if name != preset.font {
-                    if para.heading {
-                        *heading_font_issue.entry(name.clone()).or_insert(0) += 1;
-                    } else {
+                if let Some(target) = &profile.font {
+                    if name != target && !para.heading {
                         *font_issue.entry(name.clone()).or_insert(0) += 1;
+                    }
+                }
+                if let Some(target) = &profile.heading_font {
+                    if name != target && para.heading {
+                        *heading_font_issue.entry(name.clone()).or_insert(0) += 1;
                     }
                 }
             }
@@ -228,22 +256,26 @@ fn scan(doc: &Document, preset: &Preset) -> ScanReport {
                         *title_kept
                             .entry(id_num(*size))
                             .or_insert(0) += 1;
-                    } else if (*size - preset.size_pt).abs() > 0.01 {
-                        *size_issue.entry(id_num(*size)).or_insert(0) += 1;
+                    } else if let Some(target) = profile.size_pt {
+                        if (*size - target).abs() > 0.01 {
+                            *size_issue.entry(id_num(*size)).or_insert(0) += 1;
+                        }
                     }
                 }
             }
         }
         if !para.heading {
-            match para.spacing {
-                Some(spacing) if (spacing - preset.line_spacing).abs() < 0.01 => {}
-                Some(spacing) => {
-                    *spacing_issue.entry(id_num(spacing)).or_insert(0) += 1;
-                }
-                None => {
-                    *spacing_issue
-                        .entry("tidak-diatur".to_string())
-                        .or_insert(0) += 1;
+            if let Some(target) = profile.line_spacing {
+                match para.spacing {
+                    Some(spacing) if (spacing - target).abs() < 0.01 => {}
+                    Some(spacing) => {
+                        *spacing_issue.entry(id_num(spacing)).or_insert(0) += 1;
+                    }
+                    None => {
+                        *spacing_issue
+                            .entry("tidak-diatur".to_string())
+                            .or_insert(0) += 1;
+                    }
                 }
             }
         }
@@ -307,27 +339,31 @@ fn scan(doc: &Document, preset: &Preset) -> ScanReport {
     let default_font = doc.default_font_name().map(str::to_string);
     let default_size_pt = doc.default_font_size().map(|len| len.to_pt());
     if let Some(name) = &default_font {
-        if name != preset.font {
-            issues.push(Issue {
-                kind: "font",
-                id: "default-font".to_string(),
-                message: format!("Font bawaan dokumen: {name}"),
-                count: 1,
-            });
+        if let Some(target) = &profile.font {
+            if name != target {
+                issues.push(Issue {
+                    kind: "font",
+                    id: "default-font".to_string(),
+                    message: format!("Font bawaan dokumen: {name}"),
+                    count: 1,
+                });
+            }
         }
     }
     if let Some(size) = default_size_pt {
-        if (size - preset.size_pt).abs() > 0.01 {
-            issues.push(Issue {
-                kind: "size",
-                id: "default-size".to_string(),
-                message: format!("Ukuran bawaan dokumen: {} pt", fmt_num(size)),
-                count: 1,
-            });
+        if let Some(target) = profile.size_pt {
+            if (size - target).abs() > 0.01 {
+                issues.push(Issue {
+                    kind: "size",
+                    id: "default-size".to_string(),
+                    message: format!("Ukuran bawaan dokumen: {} pt", fmt_num(size)),
+                    count: 1,
+                });
+            }
         }
     }
 
-    // Margin section pertama.
+    // Margin section pertama. Hanya sisi yang diatur profil yang dicek.
     let sections: Vec<_> = doc.sections().collect();
     let margins_cm = sections.first().and_then(|s| s.margins()).map(|m| {
         [
@@ -339,12 +375,31 @@ fn scan(doc: &Document, preset: &Preset) -> ScanReport {
     });
     if let Some(margins) = margins_cm {
         let current = (margins[0], margins[1], margins[2], margins[3]);
-        if !margins_close(current, preset.margins_cm) {
+        let target = profile.margins();
+        let sides = [
+            ("atas", current.0, target.0),
+            ("kanan", current.1, target.1),
+            ("bawah", current.2, target.2),
+            ("kiri", current.3, target.3),
+        ];
+        let mut mismatched: Vec<String> = Vec::new();
+        for (name, now, want) in sides {
+            if let Some(want) = want {
+                if (now - want).abs() >= 0.1 {
+                    mismatched.push(format!(
+                        "{name} {} cm (standar {} cm)",
+                        fmt_num(now as f64),
+                        fmt_num(want as f64)
+                    ));
+                }
+            }
+        }
+        if !mismatched.is_empty() {
             issues.push(Issue {
                 kind: "margin",
                 id: "margin".to_string(),
-                message: format!("Margin saat ini {} cm", fmt_margins(current)),
-                count: 1,
+                message: format!("Margin saat ini: {}", mismatched.join(", ")),
+                count: mismatched.len(),
             });
         }
     }
@@ -475,15 +530,33 @@ pub fn fix_docx(
     preset_name: &str,
     selected: &[String],
 ) -> Result<Vec<u8>, String> {
-    let preset = preset(preset_name)?;
+    let profile = preset(preset_name)?;
+    fix_with_profile(bytes, &profile, selected)
+}
+
+/// Perbaiki .docx sesuai profil kustom (JSON), kembalikan byte .docx baru.
+pub fn fix_docx_profile(
+    bytes: &[u8],
+    profile_json: &str,
+    selected: &[String],
+) -> Result<Vec<u8>, String> {
+    let profile = profile_from_json(profile_json)?;
+    fix_with_profile(bytes, &profile, selected)
+}
+
+fn fix_with_profile(
+    bytes: &[u8],
+    profile: &Profile,
+    selected: &[String],
+) -> Result<Vec<u8>, String> {
     let mut doc = Document::from_bytes(bytes)
         .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
     let selection = Selection::from_ids(selected);
-    apply_fix(&mut doc, &preset, &selection)?;
+    apply_fix(&mut doc, profile, &selection)?;
     doc.to_bytes().map_err(|err| err.to_string())
 }
 
-fn apply_fix(doc: &mut Document, preset: &Preset, selection: &Selection) -> Result<(), String> {
+fn apply_fix(doc: &mut Document, profile: &Profile, selection: &Selection) -> Result<(), String> {
     // Paragraf isi. Penanda heading, ukuran run, font run, dan spasi
     // dibaca dulu dari sisi baca, karena Paragraph/Run (tulis) tidak
     // punya getter style_id/size/font.
@@ -501,7 +574,7 @@ fn apply_fix(doc: &mut Document, preset: &Preset, selection: &Selection) -> Resu
         .collect();
     for (i, (heading, run_sizes, run_fonts, spacing)) in para_info.iter().enumerate() {
         if let Some(mut p) = doc.paragraph_mut(i) {
-            fix_paragraph(&mut p, preset, selection, *heading, run_sizes, run_fonts, *spacing);
+            fix_paragraph(&mut p, profile, selection, *heading, run_sizes, run_fonts, *spacing);
         }
     }
     // Paragraf di sel tabel.
@@ -555,7 +628,7 @@ fn apply_fix(doc: &mut Document, preset: &Preset, selection: &Selection) -> Resu
                                     .cloned()
                                     .unwrap_or((false, Vec::new(), Vec::new(), None));
                                 fix_paragraph(
-                                    &mut p, preset, selection, heading, &run_sizes, &run_fonts,
+                                    &mut p, profile, selection, heading, &run_sizes, &run_fonts,
                                     spacing,
                                 );
                             }
@@ -565,17 +638,33 @@ fn apply_fix(doc: &mut Document, preset: &Preset, selection: &Selection) -> Resu
             }
         }
     }
-    // Semua section, hanya bila margin dicentang.
+    // Semua section, hanya bila margin dicentang. Hanya sisi yang
+    // diatur profil yang diubah; sisi lain dipertahankan.
     if selection.all || selection.margin {
-        let section_count = doc.sections().count();
+        let current: Vec<Option<(f32, f32, f32, f32)>> = doc
+            .sections()
+            .map(|s| {
+                s.margins().map(|m| {
+                    (
+                        m.0.to_cm() as f32,
+                        m.1.to_cm() as f32,
+                        m.2.to_cm() as f32,
+                        m.3.to_cm() as f32,
+                    )
+                })
+            })
+            .collect();
+        let target = profile.margins();
+        let section_count = current.len();
         for i in 0..section_count {
             if let Some(mut section) = doc.section_mut(i) {
+                let now = current[i].unwrap_or((2.54, 2.54, 2.54, 2.54));
                 section
                     .set_margins(
-                        Length::cm(preset.margins_cm.0 as f64),
-                        Length::cm(preset.margins_cm.1 as f64),
-                        Length::cm(preset.margins_cm.2 as f64),
-                        Length::cm(preset.margins_cm.3 as f64),
+                        Length::cm(target.0.unwrap_or(now.0) as f64),
+                        Length::cm(target.1.unwrap_or(now.1) as f64),
+                        Length::cm(target.2.unwrap_or(now.2) as f64),
+                        Length::cm(target.3.unwrap_or(now.3) as f64),
                     )
                     .map_err(|err| err.to_string())?;
             }
@@ -583,55 +672,74 @@ fn apply_fix(doc: &mut Document, preset: &Preset, selection: &Selection) -> Resu
     }
     // Font bawaan dokumen, supaya run tanpa format eksplisit ikut berubah.
     if selection.all || selection.default_font {
-        doc.set_default_font_name_value(Some(preset.font))
-            .map_err(|err| err.to_string())?;
+        if let Some(font) = &profile.font {
+            doc.set_default_font_name_value(Some(font))
+                .map_err(|err| err.to_string())?;
+        }
     }
     if selection.all || selection.default_size {
-        doc.set_default_font_size_value(Some(Length::pt(preset.size_pt)))
-            .map_err(|err| err.to_string())?;
+        if let Some(size) = profile.size_pt {
+            doc.set_default_font_size_value(Some(Length::pt(size)))
+                .map_err(|err| err.to_string())?;
+        }
     }
     Ok(())
 }
 
-/// Perbaiki satu paragraf sesuai pilihan: heading hanya diubah font-nya
-/// (ukuran dan spasi dipertahankan); paragraf isi diubah font, ukuran,
-/// dan spasi, kecuali run berukuran judul (>= 14 pt) yang ukurannya
-/// dipertahankan. Hanya temuan yang dicentang yang diperbaiki.
+/// Perbaiki satu paragraf sesuai pilihan dan profil: heading hanya
+/// diubah font-nya (ukuran dan spasi dipertahankan); paragraf isi
+/// diubah font, ukuran, dan spasi, kecuali run berukuran judul
+/// (>= 14 pt) yang ukurannya dipertahankan. Hanya temuan yang
+/// dicentang yang diperbaiki; aspek yang tidak diatur profil (None)
+/// tidak disentuh sama sekali.
 fn fix_paragraph(
     p: &mut rdocx::Paragraph,
-    preset: &Preset,
+    profile: &Profile,
     selection: &Selection,
     heading: bool,
     run_sizes: &[Option<f64>],
     run_fonts: &[Option<String>],
     spacing: Option<f64>,
 ) {
-    if !heading && selection.wants_spacing(spacing) {
-        p.set_line_spacing_multiple(preset.line_spacing);
+    if !heading {
+        if let Some(target) = profile.line_spacing {
+            if selection.wants_spacing(spacing) {
+                p.set_line_spacing_multiple(target);
+            }
+        }
     }
+    let font_target: Option<&str> = if heading {
+        profile.heading_font.as_deref()
+    } else {
+        profile.font.as_deref()
+    };
     let run_count = p.run_count();
     for j in 0..run_count {
         if let Some(mut run) = p.run_mut(j) {
-            let font = run_fonts.get(j).cloned().flatten();
-            // Run tanpa font eksplisit ikut diubah hanya dalam mode
-            // "semua" (perilaku lama); dalam mode selektif ia mengikuti
-            // font bawaan dokumen, yang hanya berubah bila
-            // "default-font" dicentang.
-            let set_font = match &font {
-                Some(name) if heading => selection.wants_heading_font(name),
-                Some(name) => selection.wants_font(name),
-                None => selection.all,
-            };
-            if set_font {
-                run.set_font(preset.font);
-            }
-            if !heading {
-                let set_size = match run_sizes.get(j).copied().flatten() {
-                    Some(size) => size < TITLE_MIN_SIZE_PT && selection.wants_size(size),
+            if let Some(target) = font_target {
+                let font = run_fonts.get(j).cloned().flatten();
+                // Run tanpa font eksplisit ikut diubah hanya dalam mode
+                // "semua" (perilaku lama); dalam mode selektif ia mengikuti
+                // font bawaan dokumen, yang hanya berubah bila
+                // "default-font" dicentang.
+                let set_font = match &font {
+                    Some(name) if heading => selection.wants_heading_font(name),
+                    Some(name) => selection.wants_font(name),
                     None => selection.all,
                 };
-                if set_size {
-                    run.set_size(preset.size_pt);
+                if set_font {
+                    run.set_font(target);
+                }
+            }
+            if !heading {
+                if let Some(target) = profile.size_pt {
+                    let set_size = match run_sizes.get(j).copied().flatten() {
+                        Some(size) => size < TITLE_MIN_SIZE_PT && selection.wants_size(size),
+                        None => selection.all,
+                    };
+                    if set_size {
+                        run.set_size(target);
+                    }
                 }
             }
         }
@@ -770,6 +878,94 @@ mod tests {
         assert!(ids.contains(&"spacing:2".to_string()), "ids: {ids:?}");
         assert!(ids.contains(&"spacing:tidak-diatur".to_string()), "ids: {ids:?}");
         assert!(ids.contains(&"margin".to_string()), "ids: {ids:?}");
+    }
+
+    #[test]
+    fn profil_kosong_tidak_mengubah_apa_pun() {
+        // Semua kolom dikosongkan: pindai tidak menemukan masalah dan
+        // perbaikan tidak mengubah apa pun.
+        let profile = profile_from_json(
+            r#"{"name":"Kosong","font":null,"size_pt":null,"line_spacing":null,"margin_top_cm":null,"margin_right_cm":null,"margin_bottom_cm":null,"margin_left_cm":null,"heading_font":null}"#,
+        )
+        .unwrap();
+        let original = fixture("campuran.docx");
+        let report = scan(&Document::from_bytes(&original).unwrap(), &profile);
+        let actionable: Vec<_> = report
+            .issues
+            .iter()
+            .filter(|i| i.kind != "info")
+            .collect();
+        assert!(actionable.is_empty(), "temuan: {actionable:?}");
+        let fixed = fix_with_profile(&original, &profile, &[]).unwrap();
+        let after = scan(&Document::from_bytes(&fixed).unwrap(), &profile);
+        assert_eq!(all_text(&Document::from_bytes(&original).unwrap()), all_text(&Document::from_bytes(&fixed).unwrap()));
+        let _ = after;
+    }
+
+    #[test]
+    fn profil_sebagian_hanya_font() {
+        // Hanya font yang diatur: pindai hanya menemukan masalah font,
+        // perbaikan hanya mengubah font (ukuran/spasi/margin tetap).
+        let profile = profile_from_json(
+            r#"{"name":"Hanya font","font":"Arial","size_pt":null,"line_spacing":null,"margin_top_cm":null,"margin_right_cm":null,"margin_bottom_cm":null,"margin_left_cm":null,"heading_font":null}"#,
+        )
+        .unwrap();
+        let original = fixture("campuran.docx");
+        let report = scan(&Document::from_bytes(&original).unwrap(), &profile);
+        let kinds = report
+            .issues
+            .iter()
+            .map(|i| i.kind)
+            .collect::<Vec<_>>();
+        assert!(kinds.contains(&"font"), "kinds: {kinds:?}");
+        assert!(!kinds.contains(&"size"), "kinds: {kinds:?}");
+        assert!(!kinds.contains(&"spacing"), "kinds: {kinds:?}");
+        assert!(!kinds.contains(&"margin"), "kinds: {kinds:?}");
+        let fixed = fix_with_profile(&original, &profile, &[]).unwrap();
+        let after_doc = Document::from_bytes(&fixed).unwrap();
+        let after = scan(&after_doc, &profile);
+        assert!(
+            after.issues.iter().all(|i| i.kind == "info"),
+            "masih ada masalah: {:?}",
+            after.issues
+        );
+        // Margin tidak disentuh: tetap 2 cm.
+        let margins = after_doc.sections().next().unwrap().margins().unwrap();
+        assert!((margins.0.to_cm() - 2.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn profil_margin_sebagian_hanya_sisi_atas() {
+        let profile = profile_from_json(
+            r#"{"name":"Margin atas","font":null,"size_pt":null,"line_spacing":null,"margin_top_cm":4.0,"margin_right_cm":null,"margin_bottom_cm":null,"margin_left_cm":null,"heading_font":null}"#,
+        )
+        .unwrap();
+        let original = fixture("campuran.docx");
+        let report = scan(&Document::from_bytes(&original).unwrap(), &profile);
+        let margin_issue = report
+            .issues
+            .iter()
+            .find(|i| i.kind == "margin")
+            .expect("harus ada temuan margin");
+        assert!(margin_issue.message.contains("atas"), "pesan: {}", margin_issue.message);
+        assert!(!margin_issue.message.contains("kanan"), "pesan: {}", margin_issue.message);
+        let fixed = fix_with_profile(&original, &profile, &[]).unwrap();
+        let after_doc = Document::from_bytes(&fixed).unwrap();
+        let margins = after_doc.sections().next().unwrap().margins().unwrap();
+        assert!((margins.0.to_cm() - 4.0).abs() < 0.1);
+        assert!((margins.1.to_cm() - 2.0).abs() < 0.1);
+        assert!((margins.2.to_cm() - 2.0).abs() < 0.1);
+        assert!((margins.3.to_cm() - 2.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn profil_json_tidak_valid_ditolak() {
+        assert!(profile_from_json("bukan json").is_err());
+        // JSON parsial tetap valid: kolom yang tidak ada berarti None
+        // (aspek itu tidak diubah).
+        let partial = profile_from_json(r#"{"name":"X"}"#).unwrap();
+        assert!(partial.font.is_none());
+        assert!(partial.size_pt.is_none());
     }
 
     #[test]

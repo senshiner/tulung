@@ -34,6 +34,44 @@
       <div id="preset-section" style="display:none; margin-top:24px;">
         <h2>STANDAR</h2>
         <p>TNR 12 &middot; Spasi 1,5 &middot; Margin 4-3-3-3 cm</p>
+        <p><button id="use-standard-btn" class="brutal-btn" style="padding:6px 12px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5; border:2px solid #000; cursor:pointer;">Pakai standar</button></p>
+      </div>
+
+      <div id="profile-section" style="display:none; margin-top:24px;">
+        <h2>PROFIL KUSTOM</h2>
+        <p>Bikin aturan format sendiri. Kolom sudah terisi angka default standar umum; kosongkan kolom yang memang tidak mau diubah.</p>
+        <p>
+          <label style="font-weight:700;">Nama profil:</label><br>
+          <input id="profile-name" type="text" style="width:100%; max-width:320px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+        </p>
+        <p>
+          <label style="font-weight:700;">Font isi:</label><br>
+          <input id="profile-font" type="text" style="width:100%; max-width:320px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+        </p>
+        <p>
+          <label style="font-weight:700;">Ukuran isi (pt):</label><br>
+          <input id="profile-size" type="text" inputmode="decimal" style="width:120px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+        </p>
+        <p>
+          <label style="font-weight:700;">Spasi:</label><br>
+          <input id="profile-spacing" type="text" inputmode="decimal" style="width:120px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+        </p>
+        <p>
+          <label style="font-weight:700;">Margin (cm):</label><br>
+          Atas <input id="profile-margin-top" type="text" inputmode="decimal" style="width:70px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+          Kanan <input id="profile-margin-right" type="text" inputmode="decimal" style="width:70px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+          Bawah <input id="profile-margin-bottom" type="text" inputmode="decimal" style="width:70px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+          Kiri <input id="profile-margin-left" type="text" inputmode="decimal" style="width:70px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+        </p>
+        <p>
+          <label style="font-weight:700;">Font heading:</label><br>
+          <input id="profile-heading-font" type="text" style="width:100%; max-width:320px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
+        </p>
+        <p>
+          <button id="use-profile-btn" class="brutal-border brutal-btn" style="padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; background:#33ffcc;">Pakai profil ini</button>
+          <button id="share-profile-btn" class="brutal-btn" style="padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5; border:2px solid #000; cursor:pointer;">Salin link profil</button>
+        </p>
+        <p id="profile-status" style="font-weight:700;"></p>
       </div>
 
       <div id="scan-section" style="display:none; margin-top:24px;">

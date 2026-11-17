@@ -15,6 +15,20 @@ const fileNameEl = document.getElementById('file-name');
 const fileSizeEl = document.getElementById('file-size');
 const removeFileBtn = document.getElementById('remove-file');
 const presetSection = document.getElementById('preset-section');
+const profileSection = document.getElementById('profile-section');
+const profileNameInput = document.getElementById('profile-name');
+const profileFontInput = document.getElementById('profile-font');
+const profileSizeInput = document.getElementById('profile-size');
+const profileSpacingInput = document.getElementById('profile-spacing');
+const profileMarginTopInput = document.getElementById('profile-margin-top');
+const profileMarginRightInput = document.getElementById('profile-margin-right');
+const profileMarginBottomInput = document.getElementById('profile-margin-bottom');
+const profileMarginLeftInput = document.getElementById('profile-margin-left');
+const profileHeadingFontInput = document.getElementById('profile-heading-font');
+const useStandardBtn = document.getElementById('use-standard-btn');
+const useProfileBtn = document.getElementById('use-profile-btn');
+const shareProfileBtn = document.getElementById('share-profile-btn');
+const profileStatus = document.getElementById('profile-status');
 const scanSection = document.getElementById('scan-section');
 const scanSummary = document.getElementById('scan-summary');
 const issueList = document.getElementById('issue-list');
@@ -38,6 +52,7 @@ let docFile = null; // { name, data: Uint8Array }
 let wasmPromise = null;
 let docUrl = null;
 let lastReport = null; // Laporan pindai sebelum perbaikan (untuk banding).
+let activeProfile = null; // null = standar umum; objek = profil kustom.
 const preset = 'umum'; // Satu standar universal, bukan per kampus.
 
 function loadWasm() {
@@ -50,7 +65,132 @@ function loadWasm() {
   return wasmPromise;
 }
 
-function showError(message) {
+function formatNum(value) {
+  return value === null || value === undefined
+    ? ''
+    : String(value).replace('.', ',');
+}
+
+function parseNum(value) {
+  const text = value.trim().replace(',', '.');
+  if (!text) return null;
+  const num = Number(text);
+  return Number.isFinite(num) ? num : null;
+}
+
+function fillProfileForm(profile) {
+  profileNameInput.value = profile.name || '';
+  profileFontInput.value = profile.font || '';
+  profileSizeInput.value = formatNum(profile.size_pt);
+  profileSpacingInput.value = formatNum(profile.line_spacing);
+  profileMarginTopInput.value = formatNum(profile.margin_top_cm);
+  profileMarginRightInput.value = formatNum(profile.margin_right_cm);
+  profileMarginBottomInput.value = formatNum(profile.margin_bottom_cm);
+  profileMarginLeftInput.value = formatNum(profile.margin_left_cm);
+  profileHeadingFontInput.value = profile.heading_font || '';
+}
+
+function profileFromForm() {
+  const text = (input) => {
+    const value = input.value.trim();
+    return value || null;
+  };
+  return {
+    name: profileNameInput.value.trim() || 'Profil Kustom',
+    font: text(profileFontInput),
+    size_pt: parseNum(profileSizeInput.value),
+    line_spacing: parseNum(profileSpacingInput.value),
+    margin_top_cm: parseNum(profileMarginTopInput.value),
+    margin_right_cm: parseNum(profileMarginRightInput.value),
+    margin_bottom_cm: parseNum(profileMarginBottomInput.value),
+    margin_left_cm: parseNum(profileMarginLeftInput.value),
+    heading_font: text(profileHeadingFontInput),
+  };
+}
+
+function toBase64Url(obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  let binary = '';
+  bytes.forEach((b) => { binary += String.fromCharCode(b); });
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(str) {
+  const base64 = str.replaceAll('-', '+').replaceAll('_', '/');
+  const binary = atob(base64);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function profileFromHash() {
+  const match = window.location.hash.match(/#profil=([A-Za-z0-9_-]+)/);
+  if (!match) return null;
+  try {
+    return fromBase64Url(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+async function initProfileForm() {
+  try {
+    const { default_profile } = await loadWasm();
+    const defaults = JSON.parse(default_profile());
+    const shared = profileFromHash();
+    if (shared) {
+      fillProfileForm(shared);
+      activeProfile = shared;
+      profileStatus.textContent = `Profil dari link: ${shared.name}.`;
+    } else {
+      fillProfileForm(defaults);
+    }
+  } catch {
+    // Formulir tetap bisa dipakai tanpa WASM; angka default ditulis
+    // ulang saat pemindaian pertama berhasil.
+  }
+}
+
+async function scanActive(bytes) {
+  const wasm = await loadWasm();
+  if (activeProfile) {
+    return JSON.parse(wasm.scan_docx_profile(bytes, JSON.stringify(activeProfile)));
+  }
+  return JSON.parse(wasm.scan_docx(bytes, preset));
+}
+
+async function fixActive(bytes, selected) {
+  const wasm = await loadWasm();
+  if (activeProfile) {
+    return wasm.fix_docx_profile(bytes, JSON.stringify(activeProfile), JSON.stringify(selected));
+  }
+  return wasm.fix_docx(bytes, preset, JSON.stringify(selected));
+}
+
+useStandardBtn.addEventListener('click', async () => {
+  activeProfile = null;
+  profileStatus.textContent = 'Memakai standar umum.';
+  if (docFile) await scanDocument();
+});
+
+useProfileBtn.addEventListener('click', async () => {
+  activeProfile = profileFromForm();
+  profileStatus.textContent = `Memakai profil: ${activeProfile.name}. Kolom yang dikosongkan tidak diubah.`;
+  if (docFile) await scanDocument();
+});
+
+shareProfileBtn.addEventListener('click', async () => {
+  const profile = profileFromForm();
+  const url = `${window.location.origin}${window.location.pathname}#profil=${toBase64Url(profile)}`;
+  try {
+    await navigator.clipboard.writeText(url);
+    profileStatus.textContent = 'Link profil disalin. Bagikan ke seangkatan, mereka langsung pakai profil ini.';
+  } catch {
+    window.location.hash = `profil=${toBase64Url(profile)}`;
+    profileStatus.textContent = 'Salin link dari address bar browser.';
+  }
+});
+
+initProfileForm();
   errorEl.textContent = message;
   errorEl.style.display = 'block';
 }
@@ -83,6 +223,7 @@ function summaryLines(report) {
 
 function renderReport(report) {
   scanSummary.innerHTML = `
+    <p><strong>Profil:</strong> ${activeProfile ? activeProfile.name : 'Standar Umum'}</p>
     <p><strong>Paragraf:</strong> ${report.paragraphs} &middot; <strong>Tabel:</strong> ${report.tables} &middot; <strong>Section:</strong> ${report.sections}</p>
     <p><strong>Font:</strong> ${joinCounted(report.fonts)}</p>
     <p><strong>Ukuran:</strong> ${joinCounted(report.sizes)}</p>
@@ -149,8 +290,7 @@ async function scanDocument() {
   loadingEl.style.display = 'block';
   fixBtn.disabled = true;
   try {
-    const { scan_docx } = await loadWasm();
-    const report = JSON.parse(scan_docx(docFile.data, preset));
+    const report = await scanActive(docFile.data);
     lastReport = report;
     renderReport(report);
     scanSection.style.display = 'block';
@@ -182,6 +322,7 @@ async function addFile(fileList) {
   filenameInput.value = file.name.replace(/\.docx$/i, '') + '-rapi';
   fileSection.style.display = 'block';
   presetSection.style.display = 'block';
+  profileSection.style.display = 'block';
   await scanDocument();
 }
 
@@ -204,6 +345,7 @@ removeFileBtn.addEventListener('click', () => {
   docFile = null;
   fileSection.style.display = 'none';
   presetSection.style.display = 'none';
+  profileSection.style.display = 'none';
   scanSection.style.display = 'none';
   resultSection.style.display = 'none';
   fixBtn.disabled = true;
@@ -216,9 +358,9 @@ fixBtn.addEventListener('click', async () => {
   loadingEl.textContent = 'Memperbaiki dokumen...';
   loadingEl.style.display = 'block';
   try {
-    const { fix_docx, scan_docx, docx_text } = await loadWasm();
+    const { docx_text } = await loadWasm();
     const textBefore = docx_text(docFile.data);
-    const fixedBytes = fix_docx(docFile.data, preset, JSON.stringify(selectedIds()));
+    const fixedBytes = await fixActive(docFile.data, selectedIds());
     const blob = new Blob([fixedBytes], { type: DOCX_TYPE });
     if (docUrl) URL.revokeObjectURL(docUrl);
     docUrl = URL.createObjectURL(blob);
@@ -226,7 +368,7 @@ fixBtn.addEventListener('click', async () => {
     downloadLink.href = docUrl;
     downloadLink.download = `${name}.docx`;
     // Pindai ulang hasil perbaikan: harusnya tidak ada masalah tersisa.
-    const report = JSON.parse(scan_docx(fixedBytes, preset));
+    const report = await scanActive(fixedBytes);
     const remaining = report.issues.filter((issue) => issue.kind !== 'info');
     rescanResult.textContent = remaining.length === 0
       ? 'Hasil pindai ulang: 0 masalah tersisa.'
