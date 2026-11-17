@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/tulung-core"]
+resolver = "2"

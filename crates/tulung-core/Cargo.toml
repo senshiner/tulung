@@ -1,0 +1,12 @@
+[package]
+name = "tulung-core"
+version = "0.1.0"
+edition = "2021"
+description = "Mesin Tulung: logika tools (gambar ke PDF, perapi .docx, tulis tangan), dikompilasi ke WebAssembly."
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
