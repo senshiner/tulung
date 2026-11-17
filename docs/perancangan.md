@@ -81,6 +81,10 @@ Teks jadi PDF tulisan tangan: pilihan font tangan, garis agak goyang, kertas ber
 
 ### Tahap 4, Profil dan berbagi
 Profil pedoman kustom, share lewat link, mode banding sebelum/sesudah, daftar pustaka dan gaya sitasi.
+- Pembuat profil: formulir dengan kolom font, ukuran, spasi, margin (atas/kanan/bawah/kiri), dan font heading. Semua kolom sudah terisi angka default standar umum di awal (TNR 12, spasi 1,5, margin 4-3-3-3). Pengguna boleh memakai default atau mengosongkan kolomnya.
+- Kolom yang dikosongkan berarti aspek itu memang tidak diminta diubah: pindai tidak melaporkan masalah untuk aspek itu, perbaikan tidak menyentuhnya. Urusan pengguna mau pakai default atau mengosongkan.
+- Profil disimpan sebagai JSON dan dibagikan lewat link (profil dikodekan di hash URL, tanpa akun dan tanpa server). Satu orang bikin profil pedoman kampusnya, seangkatan bisa pakai lewat link yang sama.
+- Penomoran (tabel/gambar) dan gaya sitasi masuk profil setelah riset regenerasi daftar (field TOC/SEQ) selesai.
 
 ## 6. Aturan main
 
