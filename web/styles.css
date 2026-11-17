@@ -134,11 +134,9 @@ a { color: var(--secondary); }
 .drop-area.highlight { background-color: var(--highlight); }
 
 .drop-area .drop-title,
-.drop-area .drop-sub,
 .drop-area .drop-hint { display: block; }
 
 .drop-area .drop-title { font-size: clamp(18px, 5vw, 22px); }
-.drop-area .drop-sub { margin-top: 8px; }
 .drop-area .drop-hint { font-size: 14px; margin-top: 16px; }
 
 .pick-btn {
