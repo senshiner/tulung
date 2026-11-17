@@ -86,7 +86,7 @@ function renderPreviews() {
     previewGrid.appendChild(item);
   });
   countEl.textContent = images.length;
-  summaryEl.textContent = `${images.length} gambar dipilih`;
+  summaryEl.textContent = `${images.length} gambar`;
   previewSection.style.display = images.length ? 'block' : 'none';
   convertBtn.disabled = images.length === 0;
   if (!images.length) resultSection.style.display = 'none';
