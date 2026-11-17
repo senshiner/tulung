@@ -27,7 +27,7 @@ Bedanya dengan tools sejenis: semua pemrosesan jalan di browser lewat WebAssembl
 | Tool | Status | Keterangan |
 | --- | --- | --- |
 | Gambar ke PDF | Siap dipakai | Foto tugas jadi satu PDF A4 |
-| Perapi Dokumen | Segera | Format .docx otomatis sesuai pedoman dosen |
+| Doc Format | Segera | Format .docx otomatis sesuai pedoman dosen |
 | Tulis Tangan | Segera | Teks jadi tulisan tangan (PDF) untuk latihan dan draf |
 
 ## Mulai Cepat
@@ -65,7 +65,7 @@ crates/tulung-core/    Mesin Rust, dikompilasi ke WebAssembly
 
 - **Tahap 0, Fondasi:** repo, workspace Cargo, shell web, CI. (selesai)
 - **Tahap 1, Gambar ke PDF:** port my-pdf ke Rust + WASM, perbaiki bug endpoint dan gambar tinggi. (selesai)
-- **Tahap 2, Perapi Dokumen:** pindai .docx, rapor checklist, perbaiki satu klik, isi identik kata per kata. (selesai)
+- **Tahap 2, Doc Format:** pindai .docx, rapor checklist, perbaiki satu klik, isi identik kata per kata. (selesai)
 - **Tahap 3, Tulis Tangan:** teks jadi PDF tulisan tangan.
 - **Tahap 4, Profil dan berbagi:** profil pedoman kustom, share lewat link, mode banding sebelum/sesudah.
 
@@ -75,7 +75,7 @@ Perancangan lengkap ada di [docs/perancangan.md](docs/perancangan.md).
 
 Proyek ini masih tahap awal dan dibangun bergilir, satu tool selesai baru lanjut. Kalau mau ikut:
 
-1. Fork repo ini, buat branch dari `main` (misal `tahap-2/perapi-dokumen`).
+1. Fork repo ini, buat branch dari `main` (misal `doc-format`).
 2. Commit dengan pesan Conventional Commits yang jelas (`feat:`, `fix:`, `docs:`, `chore:`).
 3. Pastikan `cargo test --workspace` dan `wasm-pack build` lolos sebelum pull request.
 
