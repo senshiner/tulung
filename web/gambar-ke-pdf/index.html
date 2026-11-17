@@ -12,7 +12,7 @@
     <header class="hero">
       <p><a href="../">&larr; Tulung</a></p>
       <h1>GAMBAR &rarr; PDF</h1>
-      <p>Foto dan catatan jadi satu PDF A4.</p>
+      <p>Foto dan catatan jadi satu PDF.</p>
     </header>
 
     <section class="section brutal-border">
@@ -32,6 +32,33 @@
           <button id="clear-all" class="brutal-border brutal-btn" style="padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5;">Hapus semua</button>
           <span id="summary" style="font-weight:700; margin-left:12px;"></span>
         </p>
+      </div>
+
+      <div id="options-section" style="display:none; margin-top:24px;">
+        <h2>OPSI</h2>
+        <div class="option-group">
+          <p class="option-label">Orientasi</p>
+          <div class="option-buttons" data-option="orientation">
+            <button type="button" data-value="portrait" class="brutal-border brutal-btn option-btn selected">Potret</button>
+            <button type="button" data-value="landscape" class="brutal-border brutal-btn option-btn">Lanskap</button>
+          </div>
+        </div>
+        <div class="option-group">
+          <p class="option-label">Ukuran halaman</p>
+          <div class="option-buttons" data-option="pageSize">
+            <button type="button" data-value="a4" class="brutal-border brutal-btn option-btn selected">A4</button>
+            <button type="button" data-value="letter" class="brutal-border brutal-btn option-btn">US Letter</button>
+            <button type="button" data-value="fit" class="brutal-border brutal-btn option-btn">Sesuai gambar</button>
+          </div>
+        </div>
+        <div class="option-group">
+          <p class="option-label">Margin</p>
+          <div class="option-buttons" data-option="margin">
+            <button type="button" data-value="none" class="brutal-border brutal-btn option-btn selected">Tanpa margin</button>
+            <button type="button" data-value="small" class="brutal-border brutal-btn option-btn">Kecil</button>
+            <button type="button" data-value="big" class="brutal-border brutal-btn option-btn">Besar</button>
+          </div>
+        </div>
       </div>
     </section>
 

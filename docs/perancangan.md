@@ -55,6 +55,7 @@ Port dari my-pdf (Next.js) ke Rust + WASM. Yang diperbaiki dari my-pdf:
 - Bug endpoint: `pages/index.js` memanggil `/api/convert-multi`, padahal file API-nya `convert.js` (route benar `/api/convert`). Di versi baru tidak ada lagi backend, jadi bug ini hilang dengan sendirinya.
 - Gambar tinggi meluber dari halaman A4: tambah batas tinggi saat resize.
 - Tambahan: drag-reorder halaman, preset ekspor (kualitas cetak vs file kecil).
+- Opsi halaman ala iLovePDF (ditambah 2026-11-18): orientasi (Potret/Lanskap), ukuran halaman (A4/US Letter/Sesuai gambar), margin (Tanpa margin/Kecil/Besar). Default Potret/A4/Tanpa margin. Gambar mengisi halaman (boleh diperbesar, rasio dijaga), bukan tampil di ukuran asli. Batas 2 MB bawaan printpdf dimatikan supaya foto besar tidak diperkecil diam-diam.
 - Hasil: tool pertama yang bisa dipakai.
 
 ### Tahap 2, Perapi Dokumen (.docx)
