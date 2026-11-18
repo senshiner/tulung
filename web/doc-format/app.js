@@ -1,4 +1,4 @@
-// Doc Format: shell web untuk tulung-core (WASM).
+// Doc Format: shell web untuk tulung-docx (WASM).
 // Alur: baca .docx sebagai byte -> pindai dengan scan_docx() di WASM
 // -> tampilkan daftar masalah -> perbaiki dengan fix_docx() -> unduh
 // + pindai ulang hasil perbaikan. Tidak ada server; isi dokumen
@@ -52,7 +52,7 @@ let rescanTimer = null;
 
 function loadWasm() {
   if (!wasmPromise) {
-    wasmPromise = import('../pkg/tulung_core.js').then(async (mod) => {
+    wasmPromise = import('../pkg-docx/tulung_docx.js').then(async (mod) => {
       await mod.default();
       return mod;
     });

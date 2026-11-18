@@ -41,8 +41,9 @@ cd tulung
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack
 
-# Build mesin WASM ke web/pkg, lalu sajikan web/ secara statis
-wasm-pack build --target web --out-dir web/pkg crates/tulung-core
+# Build kedua mesin WASM, lalu sajikan web/ secara statis
+wasm-pack build --target web --out-dir ../../web/pkg-pdf crates/tulung-pdf
+wasm-pack build --target web --out-dir ../../web/pkg-docx crates/tulung-docx
 python3 -m http.server --directory web 8000
 ```
 
@@ -52,7 +53,8 @@ Buka http://localhost:8000 di browser.
 
 ```
 web/                  Shell web (HTML + CSS + JS, gaya neobrutalism)
-crates/tulung-core/    Mesin Rust, dikompilasi ke WebAssembly
+crates/tulung-pdf/     Mesin gambar ke PDF, dikompilasi ke WebAssembly
+crates/tulung-docx/    Mesin Doc Format (.docx), dikompilasi ke WebAssembly
   src/lib.rs          Fungsi tiap tool, dipanggil shell lewat wasm-bindgen
 ```
 

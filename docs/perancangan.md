@@ -37,7 +37,8 @@ Dipilih 17 November 2026: **Rust + WebAssembly**.
 
 ## 4. Arsitektur
 
-- `tulung-core` (Rust lib, jadi WASM): tipe data bersama, mesin tiap tool, dan definisi profil pedoman (JSON).
+- `tulung-pdf` (Rust lib, jadi WASM): mesin gambar ke PDF.
+- `tulung-docx` (Rust lib, jadi WASM): mesin Doc Format dan definisi profil pedoman (JSON).
 - `tulung-web` (shell): landing, halaman tiap tool, file picker (File API), unduh hasil.
 - `tulung-profiles`: preset bawaan dan profil kustom.
   - Preset standar umum: Times New Roman 12, spasi 1,5, margin 4-3-3-3.
