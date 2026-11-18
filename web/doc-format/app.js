@@ -72,16 +72,28 @@ function parseNum(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function setFontSelect(select, value) {
+  // Font dari link profil bisa di luar daftar: tambahkan sebagai opsi
+  // supaya nilainya tetap terbaca dan bisa dipilih lagi.
+  if (value && !Array.from(select.options).some((opt) => opt.value === value)) {
+    const extra = document.createElement('option');
+    extra.value = value;
+    extra.textContent = value;
+    select.appendChild(extra);
+  }
+  select.value = value || '';
+}
+
 function fillProfileForm(profile) {
   profileNameInput.value = profile.name || '';
-  profileFontInput.value = profile.font || '';
+  setFontSelect(profileFontInput, profile.font);
   profileSizeInput.value = formatNum(profile.size_pt);
   profileSpacingInput.value = formatNum(profile.line_spacing);
   profileMarginTopInput.value = formatNum(profile.margin_top_cm);
   profileMarginRightInput.value = formatNum(profile.margin_right_cm);
   profileMarginBottomInput.value = formatNum(profile.margin_bottom_cm);
   profileMarginLeftInput.value = formatNum(profile.margin_left_cm);
-  profileHeadingFontInput.value = profile.heading_font || '';
+  setFontSelect(profileHeadingFontInput, profile.heading_font);
 }
 
 function profileFromForm() {
@@ -173,11 +185,13 @@ shareProfileBtn.addEventListener('click', async () => {
   profileMarginTopInput, profileMarginRightInput, profileMarginBottomInput,
   profileMarginLeftInput, profileHeadingFontInput,
 ].forEach((input) => {
-  input.addEventListener('input', () => {
+  const rescan = () => {
     if (!docFile) return;
     clearTimeout(rescanTimer);
     rescanTimer = setTimeout(scanDocument, 400);
-  });
+  };
+  input.addEventListener('input', rescan);
+  input.addEventListener('change', rescan); // dropdown font: 'change' yang pasti jalan
 });
 
 initProfileForm();
