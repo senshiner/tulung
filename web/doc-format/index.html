@@ -31,15 +31,9 @@
         <p><button id="remove-file" class="brutal-border brutal-btn" style="padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5;">Hapus dokumen</button></p>
       </div>
 
-      <div id="preset-section" style="display:none; margin-top:24px;">
-        <h2>STANDAR</h2>
-        <p>TNR 12 &middot; Spasi 1,5 &middot; Margin 4-3-3-3 cm</p>
-        <p><button id="use-standard-btn" class="brutal-btn" style="padding:6px 12px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5; border:2px solid #000; cursor:pointer;">Pakai standar</button></p>
-      </div>
-
       <div id="profile-section" style="display:none; margin-top:24px;">
-        <h2>PROFIL KUSTOM</h2>
-        <p>Bikin aturan format sendiri. Kolom sudah terisi angka default standar umum; kosongkan kolom yang memang tidak mau diubah.</p>
+        <h2>FORMAT KUSTOM</h2>
+        <p>Kolom sudah terisi format standar. Ubah yang mau diubah, kosongkan kolom yang memang tidak mau diubah. Pindai dan perbaikan selalu mengikuti kolom ini.</p>
         <p>
           <label style="font-weight:700;">Nama profil:</label><br>
           <input id="profile-name" type="text" style="width:100%; max-width:320px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
@@ -68,7 +62,6 @@
           <input id="profile-heading-font" type="text" style="width:100%; max-width:320px; padding:6px; font-family:'Space Mono',monospace; border:2px solid #000;">
         </p>
         <p>
-          <button id="use-profile-btn" class="brutal-border brutal-btn" style="padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; background:#33ffcc;">Pakai profil ini</button>
           <button id="share-profile-btn" class="brutal-btn" style="padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5; border:2px solid #000; cursor:pointer;">Salin link profil</button>
         </p>
         <p id="profile-status" style="font-weight:700;"></p>
@@ -77,11 +70,7 @@
       <div id="scan-section" style="display:none; margin-top:24px;">
         <h2>HASIL PINDAI</h2>
         <div id="scan-summary"></div>
-        <p style="margin-top:12px;">Centang masalah yang mau diperbaiki.
-          <button id="select-all" class="brutal-btn" style="padding:4px 10px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5; border:2px solid #000; cursor:pointer;">Pilih semua</button>
-          <button id="select-none" class="brutal-btn" style="padding:4px 10px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5; border:2px solid #000; cursor:pointer;">Hapus semua</button>
-        </p>
-        <ul id="issue-list" style="margin-top:12px; padding-left:20px; list-style:none;"></ul>
+        <ul id="issue-list" style="margin-top:12px; padding-left:20px;"></ul>
       </div>
     </section>
 

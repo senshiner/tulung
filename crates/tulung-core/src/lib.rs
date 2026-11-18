@@ -249,27 +249,16 @@ pub fn scan_docx_profile(bytes: &[u8], profile_json: &str) -> Result<String, JsV
 }
 
 /// Doc Format: perbaiki .docx sesuai profil kustom (JSON), kembalikan
-/// byte .docx. `selected_json` berisi array JSON id temuan yang
-/// dicentang pengguna; array kosong berarti perbaiki semua.
+/// byte .docx.
 #[wasm_bindgen]
-pub fn fix_docx_profile(
-    bytes: &[u8],
-    profile_json: &str,
-    selected_json: &str,
-) -> Result<Vec<u8>, JsValue> {
-    let selected: Vec<String> = serde_json::from_str(selected_json)
-        .map_err(|err| JsValue::from_str(&format!("Pilihan perbaikan tidak valid: {err}")))?;
-    docx::fix_docx_profile(bytes, profile_json, &selected).map_err(|err| JsValue::from_str(&err))
+pub fn fix_docx_profile(bytes: &[u8], profile_json: &str) -> Result<Vec<u8>, JsValue> {
+    docx::fix_docx_profile(bytes, profile_json).map_err(|err| JsValue::from_str(&err))
 }
 
 /// Doc Format: perbaiki .docx sesuai preset, kembalikan byte .docx.
-/// `selected_json` berisi array JSON id temuan yang dicentang pengguna;
-/// array kosong berarti perbaiki semua temuan yang bisa diperbaiki.
 #[wasm_bindgen]
-pub fn fix_docx(bytes: &[u8], preset: &str, selected_json: &str) -> Result<Vec<u8>, JsValue> {
-    let selected: Vec<String> = serde_json::from_str(selected_json)
-        .map_err(|err| JsValue::from_str(&format!("Pilihan perbaikan tidak valid: {err}")))?;
-    docx::fix_docx(bytes, preset, &selected).map_err(|err| JsValue::from_str(&err))
+pub fn fix_docx(bytes: &[u8], preset: &str) -> Result<Vec<u8>, JsValue> {
+    docx::fix_docx(bytes, preset).map_err(|err| JsValue::from_str(&err))
 }
 
 #[cfg(test)]
