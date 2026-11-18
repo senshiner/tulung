@@ -2162,17 +2162,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "tulung-core"
+name = "tulung-docx"
 version = "0.1.0"
 dependencies = [
- "image",
  "js-sys",
- "printpdf",
  "rdocx",
  "serde",
  "serde_json",
  "wasm-bindgen",
  "zip",
+]
+
+[[package]]
+name = "tulung-pdf"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "js-sys",
+ "printpdf",
+ "wasm-bindgen",
 ]
 
 [[package]]

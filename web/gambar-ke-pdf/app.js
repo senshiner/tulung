@@ -1,4 +1,4 @@
-// Gambar ke PDF: shell web untuk tulung-core (WASM).
+// Gambar ke PDF: shell web untuk tulung-pdf (WASM).
 // Alur: baca file sebagai byte -> kirim ke images_to_pdf() di WASM
 // -> terima byte PDF -> unduh + pratinjau. Tidak ada server.
 //
@@ -43,7 +43,7 @@ document.querySelectorAll('.option-buttons').forEach((group) => {
 
 function loadWasm() {
   if (!wasmPromise) {
-    wasmPromise = import('../pkg/tulung_core.js').then(async (mod) => {
+    wasmPromise = import('../pkg-pdf/tulung_pdf.js').then(async (mod) => {
       await mod.default();
       return mod;
     });
