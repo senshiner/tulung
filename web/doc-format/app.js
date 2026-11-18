@@ -49,6 +49,7 @@ let wasmPromise = null;
 let docUrl = null;
 let lastReport = null; // Laporan pindai sebelum perbaikan (untuk banding).
 let rescanTimer = null;
+let fixing = false; // Perbaikan sedang jalan: pindai otomatis harus diam.
 
 function loadWasm() {
   if (!wasmPromise) {
@@ -276,12 +277,18 @@ function renderCompare(before, after) {
 }
 
 async function scanDocument() {
+  // Jangan ganggu perbaikan yang sedang jalan: pindai di sini menimpa
+  // loading, menonaktifkan tombol, dan menyembunyikan hasil perbaikan.
+  if (fixing) return;
   hideError();
   loadingEl.textContent = 'Memindai dokumen...';
   loadingEl.style.display = 'block';
   fixBtn.disabled = true;
   try {
     const report = await scanActive(docFile.data);
+    // Perbaikan bisa saja mulai saat pindai ini menunggu WASM: kalau
+    // begitu, jangan sentuh tampilan sama sekali.
+    if (fixing) return;
     lastReport = report;
     renderReport(report);
     scanSection.style.display = 'block';
@@ -342,6 +349,10 @@ removeFileBtn.addEventListener('click', () => {
 
 fixBtn.addEventListener('click', async () => {
   if (!docFile) return;
+  // Batalkan pindai otomatis yang masih menunggu: kalau ia jalan di
+  // tengah perbaikan, hasilnya menimpa tampilan perbaikan.
+  clearTimeout(rescanTimer);
+  fixing = true;
   hideError();
   fixBtn.disabled = true;
   loadingEl.textContent = 'Memperbaiki dokumen...';
@@ -387,6 +398,7 @@ fixBtn.addEventListener('click', async () => {
     showError(`Gagal memperbaiki dokumen: ${error}. Coba muat ulang halaman.`);
     fixBtn.disabled = false;
   } finally {
+    fixing = false;
     loadingEl.style.display = 'none';
   }
 });
