@@ -1,0 +1,5 @@
+# Test thread test docx memakai stack dalam (layout engine rdocx saat
+# rebuild daftar). Stack bawaan 2 MB bisa overflow; naikkan ke 16 MB.
+# Berlaku untuk semua perintah cargo, termasuk `cargo test` di CI.
+[env]
+RUST_MIN_STACK = "16777216"
