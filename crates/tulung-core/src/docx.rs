@@ -11,11 +11,23 @@
 //! dipertahankan. Tanpa aturan ini, judul sampul makalah ikut mengecil
 //! jadi 12 pt. Heading diperlakukan sama: hanya font yang diubah.
 //!
+//! Perbaikan juga membuat ulang daftar: daftar isi (dari heading),
+//! daftar tabel/gambar yang sudah ada, dan daftar pustaka yang sudah
+//! ada. Dokumen yang punya heading tapi belum ada daftar isi akan
+//! dibuatkan daftar isinya di awal isi. Daftar pustaka dan daftar
+//! tabel/gambar TIDAK dibuatkan bila belum ada — hanya yang sudah ada
+//! yang dibuat ulang.
+//!
 //! Batasan yang diketahui: header/footer hanya dilaporkan (ada/tidak),
 //! tidak ikut diperbaiki, karena rdocx 0.17 tidak membuka API tulis
-//! untuk paragraf header/footer.
+//! untuk paragraf header/footer. Nomor halaman di daftar isi dihitung
+//! layout internal rdocx dan bisa meleset dari pagination Word /
+//! LibreOffice (terukur sampai 7 halaman pada dokumen 33 halaman):
+//! judul dan struktur daftar benar, angka halaman adalah perkiraan.
+//! Pengguna perlu Perbarui Field di Word/LibreOffice untuk angka eksak.
 
 use std::collections::BTreeMap;
+use std::io::{Read, Write};
 
 use rdocx::{Document, Length};
 use serde::{Deserialize, Serialize};
@@ -116,6 +128,28 @@ pub struct ScanReport {
     pub default_font: Option<String>,
     pub default_size_pt: Option<f64>,
     pub issues: Vec<Issue>,
+    pub lists: ListInfo,
+}
+
+/// Status daftar dalam dokumen (hanya informasi, bukan masalah).
+#[derive(Serialize)]
+pub struct ListInfo {
+    /// Jumlah entri daftar isi; None bila tidak ada field daftar isi.
+    pub toc_entries: Option<usize>,
+    /// (label, jumlah entri) tiap daftar tabel/gambar yang sudah ada.
+    /// Entri None bila jumlah tidak bisa dihitung (field sederhana).
+    pub tables: Vec<ListTableInfo>,
+    /// Jumlah entri daftar pustaka; None bila tidak ada fieldnya.
+    pub bibliography_entries: Option<usize>,
+    /// Jumlah heading (menentukan apakah daftar isi akan dibuatkan).
+    pub headings: usize,
+}
+
+/// Satu daftar tabel/gambar dalam laporan pindai.
+#[derive(Serialize)]
+pub struct ListTableInfo {
+    pub label: String,
+    pub entries: Option<usize>,
 }
 
 /// Format angka: buang ,0 di belakang, pakai koma desimal.
@@ -143,7 +177,14 @@ struct ParaStat {
 
 fn collect_paragraphs(doc: &Document) -> Vec<ParaStat> {
     let mut out = Vec::new();
+    // Paragraf entri daftar dilewati: isinya dibuat ulang mesin,
+    // bukan ditulis pengguna, jadi tidak dinilai terhadap profil.
+    // Paragraf kosong dilewati juga (termasuk paragraf pembuka dan
+    // penutup field daftar, yang memang tidak berisi kata).
     for p in doc.paragraphs() {
+        if is_list_style(p.style_id()) || p.text().trim().is_empty() {
+            continue;
+        }
         out.push(para_stat(&p));
     }
     for table in doc.tables() {
@@ -151,6 +192,9 @@ fn collect_paragraphs(doc: &Document) -> Vec<ParaStat> {
             for col in 0..table.column_count() {
                 if let Some(cell) = table.cell(row, col) {
                     for p in cell.paragraphs() {
+                        if is_list_style(p.style_id()) || p.text().trim().is_empty() {
+                            continue;
+                        }
                         out.push(para_stat(&p));
                     }
                 }
@@ -176,7 +220,7 @@ pub fn scan_docx(bytes: &[u8], preset_name: &str) -> Result<String, String> {
     let profile = preset(preset_name)?;
     let doc = Document::from_bytes(bytes)
         .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
-    let report = scan(&doc, &profile);
+    let report = scan(&doc, &profile, bytes);
     serde_json::to_string(&report).map_err(|err| err.to_string())
 }
 
@@ -185,11 +229,274 @@ pub fn scan_docx_profile(bytes: &[u8], profile_json: &str) -> Result<String, Str
     let profile = profile_from_json(profile_json)?;
     let doc = Document::from_bytes(bytes)
         .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
-    let report = scan(&doc, &profile);
+    let report = scan(&doc, &profile, bytes);
     serde_json::to_string(&report).map_err(|err| err.to_string())
 }
 
-fn scan(doc: &Document, profile: &Profile) -> ScanReport {
+/// Isi word/document.xml dari byte .docx.
+fn document_xml(bytes: &[u8]) -> Result<String, String> {
+    let mut archive =
+        zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|err| err.to_string())?;
+    let mut file = archive
+        .by_name("word/document.xml")
+        .map_err(|err| err.to_string())?;
+    let mut xml = String::new();
+    file.read_to_string(&mut xml).map_err(|err| err.to_string())?;
+    Ok(xml)
+}
+
+/// Satu field daftar yang ditemukan di word/document.xml.
+struct FieldSpan {
+    kind: FieldKind,
+    label: Option<String>,
+    /// Jumlah entri di antara separate dan end; None bila tidak
+    /// bisa dihitung (field sederhana tanpa pemisah paragraf).
+    entries: Option<usize>,
+}
+
+enum FieldKind {
+    Toc,
+    Figures,
+    Bibliography,
+}
+
+/// Uraikan entitas XML yang umum di dalam teks instruksi field.
+fn decode_entities(text: &str) -> String {
+    text.replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+}
+
+/// Pecah instruksi field jadi token; teks berpetik tetap satu token
+/// tanpa tanda petik (mis. `TOC \o "1-3"` -> ["TOC", "\\o", "1-3"]).
+fn split_field_tokens(instr: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quoted = false;
+    for ch in instr.chars() {
+        match ch {
+            '"' => quoted = !quoted,
+            c if c.is_whitespace() && !quoted => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            c => current.push(c),
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
+}
+
+/// Tentukan jenis field dari token instruksinya.
+fn classify_field(tokens: &[String]) -> Option<(FieldKind, Option<String>)> {
+    match tokens.first().map(String::as_str) {
+        Some("TOC") => {
+            let mut i = 1;
+            while i < tokens.len() {
+                if let Some(switch) = tokens[i].strip_prefix('\\') {
+                    match switch {
+                        "o" => return Some((FieldKind::Toc, None)),
+                        "c" => {
+                            return Some((FieldKind::Figures, tokens.get(i + 1).cloned()));
+                        }
+                        _ => {}
+                    }
+                }
+                i += 1;
+            }
+            None
+        }
+        Some("BIBLIOGRAPHY") => Some((FieldKind::Bibliography, None)),
+        _ => None,
+    }
+}
+
+/// Hitung paragraf di antara pemisah (separate) dan penutup (end)
+/// sebuah field kompleks. Entri daftar adalah satu paragraf tiap
+/// entri; skeleton kosong menghasilkan 0.
+fn complex_entries(xml: &str, instr_end: usize) -> Option<usize> {
+    let after_instr = &xml[instr_end..];
+    let separate = after_instr.find("fldCharType=\"separate\"")? + instr_end;
+    let end = xml[separate..].find("fldCharType=\"end\"")? + separate;
+    let region_start = xml[separate..].find("</w:p>")? + separate + "</w:p>".len();
+    let region_end = rfind_paragraph_start(&xml[..end])?;
+    if region_end <= region_start {
+        return Some(0);
+    }
+    let region = &xml[region_start..region_end];
+    let mut count = 0;
+    let mut rest = region;
+    while let Some(pos) = rest.find("<w:p") {
+        let after = rest[pos + 4..].chars().next();
+        if matches!(after, Some('>') | Some(' ')) {
+            count += 1;
+        }
+        rest = &rest[pos + 4..];
+    }
+    Some(count)
+}
+
+/// Posisi awal paragraf terakhir sebelum `before`: cari "<w:p" yang
+/// diikuti '>' atau spasi (bukan "<w:pPr" properti paragraf).
+fn rfind_paragraph_start(xml: &str) -> Option<usize> {
+    let mut end = xml.len();
+    loop {
+        let pos = xml[..end].rfind("<w:p")?;
+        let after = xml[pos + 4..].chars().next();
+        if matches!(after, Some('>') | Some(' ')) {
+            return Some(pos);
+        }
+        end = pos;
+    }
+}
+
+/// Hitung entri daftar pustaka. rdocx (dan Word) menulis entri
+/// pertama sebaris di paragraf field (setelah separate), entri
+/// berikut sebagai paragraf berstyle Bibliography. Hitung paragraf
+/// saja memberi 0 untuk pustaka satu entri.
+fn bibliography_entries(xml: &str, instr_end: usize) -> Option<usize> {
+    let after_instr = &xml[instr_end..];
+    let separate = after_instr.find("fldCharType=\"separate\"")? + instr_end;
+    let end = xml[separate..].find("fldCharType=\"end\"")? + separate;
+    let para_end = xml[separate..].find("</w:p>")? + separate;
+    // Entri pertama: ada teks di antara separate dan akhir paragraf.
+    let mut count = 0;
+    let mut rest = &xml[separate..para_end];
+    while let Some(pos) = rest.find("<w:t") {
+        let Some(gt) = rest[pos..].find('>') else { break };
+        let text_start = pos + gt + 1;
+        let Some(close) = rest[text_start..].find("</w:t>") else {
+            break;
+        };
+        if !rest[text_start..text_start + close].trim().is_empty() {
+            count = 1;
+            break;
+        }
+        rest = &rest[text_start + close..];
+    }
+    // Entri berikut: paragraf berstyle Bibliography di region.
+    let region_start = para_end + "</w:p>".len();
+    let region_end = rfind_paragraph_start(&xml[..end])?;
+    if region_end > region_start {
+        count += xml[region_start..region_end]
+            .matches("<w:pStyle w:val=\"Bibliography\"")
+            .count();
+    }
+    Some(count)
+}
+/// Field kompleks (begin/instr/separate/end) dan field sederhana
+/// (fldSimple) sama-sama dikenali; jumlah entri field sederhana
+/// dihitung dari PAGEREF di dalamnya (pustaka: tidak bisa dihitung).
+fn field_spans(xml: &str) -> Vec<FieldSpan> {
+    let mut spans = Vec::new();
+    // Field kompleks: instruksi di elemen <w:instrText>.
+    let mut offset = 0;
+    while let Some(pos) = xml[offset..].find("<w:instrText") {
+        let tag_start = offset + pos;
+        let Some(gt) = xml[tag_start..].find('>') else { break };
+        let instr_start = tag_start + gt + 1;
+        let Some(close) = xml[instr_start..].find("</w:instrText>") else {
+            break;
+        };
+        let instr_end = instr_start + close;
+        let instr = decode_entities(&xml[instr_start..instr_end]);
+        if let Some((kind, label)) = classify_field(&split_field_tokens(&instr)) {
+            let entries = match kind {
+                FieldKind::Bibliography => bibliography_entries(xml, instr_end),
+                _ => complex_entries(xml, instr_end),
+            };
+            spans.push(FieldSpan {
+                kind,
+                label,
+                entries,
+            });
+        }
+        offset = instr_end + "</w:instrText>".len();
+    }
+    // Field sederhana: instruksi di atribut w:instr <w:fldSimple>.
+    let mut offset = 0;
+    while let Some(pos) = xml[offset..].find("<w:fldSimple") {
+        let tag_start = offset + pos;
+        let Some(gt) = xml[tag_start..].find('>') else { break };
+        let tag = &xml[tag_start..tag_start + gt];
+        let entries = tag
+            .find("w:instr=\"")
+            .and_then(|start| {
+                let value_start = start + "w:instr=\"".len();
+                let value_end = tag[value_start..].find('"')? + value_start;
+                Some(decode_entities(&tag[value_start..value_end]))
+            })
+            .and_then(|instr| classify_field(&split_field_tokens(&instr)));
+        let Some((kind, label)) = entries else {
+            offset = tag_start + gt + 1;
+            continue;
+        };
+        let body_start = tag_start + gt + 1;
+        let body_end = xml[body_start..]
+            .find("</w:fldSimple>")
+            .map(|p| p + body_start)
+            .unwrap_or(body_start);
+        let entries = match kind {
+            FieldKind::Bibliography => None,
+            _ => Some(xml[body_start..body_end].matches("PAGEREF").count()),
+        };
+        spans.push(FieldSpan {
+            kind,
+            label,
+            entries,
+        });
+        offset = body_end + "</w:fldSimple>".len();
+    }
+    spans
+}
+
+/// Status daftar dalam dokumen, untuk rapor pindai.
+fn list_info(doc: &Document, bytes: &[u8]) -> ListInfo {
+    let headings = doc
+        .paragraphs()
+        .iter()
+        .filter(|p| is_heading(p.style_id()))
+        .count();
+    let mut info = ListInfo {
+        toc_entries: None,
+        tables: Vec::new(),
+        bibliography_entries: None,
+        headings,
+    };
+    let Ok(xml) = document_xml(bytes) else {
+        return info;
+    };
+    for span in field_spans(&xml) {
+        match span.kind {
+            FieldKind::Toc => {
+                if info.toc_entries.is_none() {
+                    info.toc_entries = span.entries;
+                }
+            }
+            FieldKind::Figures => {
+                if let Some(label) = span.label {
+                    info.tables.push(ListTableInfo {
+                        label,
+                        entries: span.entries,
+                    });
+                }
+            }
+            FieldKind::Bibliography => {
+                if info.bibliography_entries.is_none() {
+                    info.bibliography_entries = span.entries;
+                }
+            }
+        }
+    }
+    info
+}
+
+fn scan(doc: &Document, profile: &Profile, bytes: &[u8]) -> ScanReport {
     let paras = collect_paragraphs(doc);
     let mut fonts: BTreeMap<String, usize> = BTreeMap::new();
     let mut sizes: BTreeMap<String, usize> = BTreeMap::new();
@@ -382,6 +689,49 @@ fn scan(doc: &Document, profile: &Profile) -> ScanReport {
         });
     }
 
+    // Status daftar (hanya informasi, bukan masalah). Daftar pustaka
+    // dan daftar tabel/gambar hanya dilaporkan bila sudah ada, karena
+    // perbaikan tidak membuatkannya bila belum ada.
+    let lists = list_info(doc, bytes);
+    match lists.toc_entries {
+        Some(n) => issues.push(Issue {
+            kind: "info",
+            message: format!("Daftar isi: {n} entri"),
+            count: n,
+        }),
+        None if lists.headings > 0 => issues.push(Issue {
+            kind: "info",
+            message: "Tidak ada daftar isi, akan dibuatkan".to_string(),
+            count: 0,
+        }),
+        None => issues.push(Issue {
+            kind: "info",
+            message: "Tidak ada daftar isi".to_string(),
+            count: 0,
+        }),
+    }
+    for table in &lists.tables {
+        match table.entries {
+            Some(n) => issues.push(Issue {
+                kind: "info",
+                message: format!("Daftar {}: {n} entri", table.label),
+                count: n,
+            }),
+            None => issues.push(Issue {
+                kind: "info",
+                message: format!("Daftar {}: ada", table.label),
+                count: 0,
+            }),
+        }
+    }
+    if let Some(n) = lists.bibliography_entries {
+        issues.push(Issue {
+            kind: "info",
+            message: format!("Daftar pustaka: {n} entri"),
+            count: n,
+        });
+    }
+
     let to_counted = |map: BTreeMap<String, usize>| {
         map.into_iter()
             .map(|(value, count)| Counted { value, count })
@@ -401,6 +751,7 @@ fn scan(doc: &Document, profile: &Profile) -> ScanReport {
         default_font,
         default_size_pt,
         issues,
+        lists,
     }
 }
 
@@ -422,7 +773,96 @@ fn fix_with_profile(bytes: &[u8], profile: &Profile) -> Result<Vec<u8>, String> 
     let mut doc = Document::from_bytes(bytes)
         .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
     apply_fix(&mut doc, profile)?;
+    let headings = doc
+        .paragraphs()
+        .iter()
+        .filter(|p| is_heading(p.style_id()))
+        .count();
+    let mut fixed = doc.to_bytes().map_err(|err| err.to_string())?;
+    // Dokumen punya heading tapi belum ada daftar isi: buatkan
+    // skeleton-nya di awal isi, supaya rebuild_toc bisa mengisinya.
+    // (rdocx tidak bisa menyisip field kompleks multi-paragraf lewat
+    // API; skeleton disisip lewat bedah zip sebelum dokumen dimuat.)
+    let has_toc = document_xml(&fixed)
+        .map(|xml| field_spans(&xml).iter().any(|s| matches!(s.kind, FieldKind::Toc)))
+        .unwrap_or(false);
+    // Lepas dokumen pertama sebelum memuat ulang: dua Document rdocx
+    // hidup bersamaan pernah menghabiskan stack thread tes.
+    drop(doc);
+    if headings > 0 && !has_toc {
+        fixed = insert_toc_skeleton(&fixed)?;
+    }
+    let mut doc = Document::from_bytes(&fixed)
+        .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
+    rebuild_lists(&mut doc)?;
     doc.to_bytes().map_err(|err| err.to_string())
+}
+
+/// Buat ulang semua daftar yang sudah ada.
+/// Urutan penting: daftar tabel/gambar dulu, baru daftar isi, lalu
+/// pustaka. Urutan sebaliknya (daftar isi dulu) pernah gagal di rdocx
+/// 0.17 karena rebuild_generated_tables memakai id bookmark yang
+/// sudah dipakai rebuild_toc ("duplicate bookmark id").
+/// Tidak ada daftar berarti tidak ada yang dibuat ulang (bukan error).
+fn rebuild_lists(doc: &mut Document) -> Result<(), String> {
+    doc.rebuild_generated_tables()
+        .map_err(|err| err.to_string())?;
+    doc.rebuild_toc().map_err(|err| err.to_string())?;
+    doc.update_bibliography().map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+/// Skeleton daftar isi: paragraf begin+instr+separate, lalu paragraf
+/// end, tanpa entri dan tanpa judul. Struktur paragraf jamak ini yang
+/// diminta rebuild_toc ("table of contents result must span paragraph
+/// boundaries"); field satu paragraf ditolak.
+const TOC_SKELETON: &str = concat!(
+    "<w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>",
+    "<w:r><w:instrText xml:space=\"preserve\"> TOC \\o \"1-3\" \\h \\z \\u </w:instrText></w:r>",
+    "<w:r><w:fldChar w:fldCharType=\"separate\"/></w:r></w:p>",
+    "<w:p><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+);
+
+/// Sisip skeleton daftar isi tepat setelah tag <w:body> (awal isi).
+/// Semua entri zip disalin; hanya word/document.xml yang diubah.
+fn insert_toc_skeleton(bytes: &[u8]) -> Result<Vec<u8>, String> {
+    let mut xml = document_xml(bytes)?;
+    let body = xml.find("<w:body").ok_or("Tag <w:body> tidak ketemu")?;
+    let close = xml[body..]
+        .find('>')
+        .ok_or("Tag <w:body> tidak tertutup")?
+        + body;
+    xml.insert_str(close + 1, TOC_SKELETON);
+    let mut archive =
+        zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|err| err.to_string())?;
+    let mut out = std::io::Cursor::new(Vec::new());
+    {
+        let mut writer = zip::ZipWriter::new(&mut out);
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).map_err(|err| err.to_string())?;
+            let name = file
+                .name()
+                .map_err(|err| err.to_string())?
+                .into_owned();
+            let mut data = Vec::new();
+            file.read_to_end(&mut data).map_err(|err| err.to_string())?;
+            let options = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            writer
+                .start_file(name.clone(), options)
+                .map_err(|err| err.to_string())?;
+            let content: &[u8] = if name == "word/document.xml" {
+                xml.as_bytes()
+            } else {
+                &data
+            };
+            writer
+                .write_all(content)
+                .map_err(|err| err.to_string())?;
+        }
+        writer.finish().map_err(|err| err.to_string())?;
+    }
+    Ok(out.into_inner())
 }
 
 fn apply_fix(doc: &mut Document, profile: &Profile) -> Result<(), String> {
@@ -592,19 +1032,56 @@ pub fn docx_text(bytes: &[u8]) -> Result<String, String> {
     Ok(all_text(&doc))
 }
 
+/// Style paragraf entri daftar (hasil Word/rdocx): entri daftar isi
+/// (TOC1-TOC9), daftar tabel/gambar (TableofFigures), daftar pustaka
+/// (Bibliography). Entri daftar bukan isi yang ditulis pengguna, jadi
+/// tidak dihitung dalam banding teks sebelum/sesudah perbaikan.
+fn is_list_style(style_id: Option<&str>) -> bool {
+    let Some(style) = style_id else {
+        return false;
+    };
+    let lower = style.to_lowercase();
+    if lower == "tableoffigures" || lower == "bibliography" {
+        return true;
+    }
+    if let Some(rest) = lower.strip_prefix("toc") {
+        return !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit());
+    }
+    false
+}
+
 /// Seluruh teks dokumen (paragraf isi + sel tabel), untuk memastikan
-/// perbaikan tidak mengubah isi.
+/// perbaikan tidak mengubah isi. Paragraf entri daftar dan paragraf
+/// kosong dilewati: entri daftar dibuat ulang mesin, paragraf kosong
+/// (termasuk paragraf pembuka/penutup field daftar) bukan kata-kata isi.
+/// Spasi di dalam paragraf dinormalisasi (rangkaian spasi/tab jadi satu
+/// spasi), karena rebuild field bisa menambah spasi di depan hasil
+/// sitasi; yang dibandingkan adalah kata-katanya, bukan spasinya.
 pub fn all_text(doc: &Document) -> String {
+    fn push_part(parts: &mut Vec<String>, p: &rdocx::ParagraphRef) {
+        if is_list_style(p.style_id()) {
+            return;
+        }
+        let norm = p
+            .text()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if !norm.is_empty() {
+            parts.push(norm);
+        }
+    }
+
     let mut parts = Vec::new();
     for p in doc.paragraphs() {
-        parts.push(p.text());
+        push_part(&mut parts, &p);
     }
     for table in doc.tables() {
         for row in 0..table.row_count() {
             for col in 0..table.column_count() {
                 if let Some(cell) = table.cell(row, col) {
                     for p in cell.paragraphs() {
-                        parts.push(p.text());
+                        push_part(&mut parts, &p);
                     }
                 }
             }
@@ -642,8 +1119,9 @@ mod tests {
     #[test]
     fn pindai_menemukan_masalah_campuran() {
         let report = scan_json(&fixture("campuran.docx"), "umum");
-        // 4 paragraf isi (1 heading + 3) + 4 paragraf sel tabel (2x2).
-        assert_eq!(report["paragraphs"], 8);
+        // 4 paragraf isi (1 heading + 3) + 3 paragraf sel tabel berisi
+        // (sel keempat kosong, tidak dihitung sebagai isi).
+        assert_eq!(report["paragraphs"], 7);
         assert_eq!(report["tables"], 1);
         let kinds = issue_kinds(&report);
         assert!(kinds.contains(&"font".to_string()), "kinds: {kinds:?}");
@@ -663,7 +1141,7 @@ mod tests {
         )
         .unwrap();
         let original = fixture("campuran.docx");
-        let report = scan(&Document::from_bytes(&original).unwrap(), &profile);
+        let report = scan(&Document::from_bytes(&original).unwrap(), &profile, &original);
         let actionable: Vec<_> = report
             .issues
             .iter()
@@ -671,7 +1149,7 @@ mod tests {
             .collect();
         assert!(actionable.is_empty(), "temuan: {actionable:?}");
         let fixed = fix_with_profile(&original, &profile).unwrap();
-        let after = scan(&Document::from_bytes(&fixed).unwrap(), &profile);
+        let after = scan(&Document::from_bytes(&fixed).unwrap(), &profile, &fixed);
         assert_eq!(all_text(&Document::from_bytes(&original).unwrap()), all_text(&Document::from_bytes(&fixed).unwrap()));
         let _ = after;
     }
@@ -685,7 +1163,7 @@ mod tests {
         )
         .unwrap();
         let original = fixture("campuran.docx");
-        let report = scan(&Document::from_bytes(&original).unwrap(), &profile);
+        let report = scan(&Document::from_bytes(&original).unwrap(), &profile, &original);
         let kinds = report
             .issues
             .iter()
@@ -697,7 +1175,7 @@ mod tests {
         assert!(!kinds.contains(&"margin"), "kinds: {kinds:?}");
         let fixed = fix_with_profile(&original, &profile).unwrap();
         let after_doc = Document::from_bytes(&fixed).unwrap();
-        let after = scan(&after_doc, &profile);
+        let after = scan(&after_doc, &profile, &fixed);
         assert!(
             after.issues.iter().all(|i| i.kind == "info"),
             "masih ada masalah: {:?}",
@@ -715,7 +1193,7 @@ mod tests {
         )
         .unwrap();
         let original = fixture("campuran.docx");
-        let report = scan(&Document::from_bytes(&original).unwrap(), &profile);
+        let report = scan(&Document::from_bytes(&original).unwrap(), &profile, &original);
         let margin_issue = report
             .issues
             .iter()
@@ -878,4 +1356,99 @@ mod tests {
         assert!(scan_docx(&original, "kampus-lain").is_err());
         assert!(fix_docx(&original, "kampus-lain").is_err());
     }
+
+    #[test]
+    fn pindai_melaporkan_status_daftar() {
+        // daftar.docx: TOC basi 2 entri, daftar tabel 1, daftar gambar
+        // 1, daftar pustaka 1, 4 heading.
+        let report = scan_json(&fixture("daftar.docx"), "umum");
+        let lists = &report["lists"];
+        assert_eq!(lists["toc_entries"], 2);
+        assert_eq!(lists["headings"], 4);
+        assert_eq!(lists["bibliography_entries"], 1);
+        let tables = lists["tables"].as_array().unwrap();
+        assert_eq!(tables.len(), 2);
+        let tabel = tables.iter().find(|t| t["label"] == "Tabel").unwrap();
+        assert_eq!(tabel["entries"], 1);
+        let gambar = tables.iter().find(|t| t["label"] == "Gambar").unwrap();
+        assert_eq!(gambar["entries"], 1);
+        let messages: Vec<_> = report["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["message"].as_str().unwrap().to_string())
+            .collect();
+        assert!(messages.iter().any(|m| m == "Daftar isi: 2 entri"), "{messages:?}");
+        assert!(messages.iter().any(|m| m == "Daftar Tabel: 1 entri"), "{messages:?}");
+        assert!(messages.iter().any(|m| m == "Daftar Gambar: 1 entri"), "{messages:?}");
+        assert!(messages.iter().any(|m| m == "Daftar pustaka: 1 entri"), "{messages:?}");
+    }
+
+    #[test]
+    fn perbaiki_membangun_ulang_daftar() {
+        let original = fixture("daftar.docx");
+        let before_text = all_text(&Document::from_bytes(&original).unwrap());
+        assert!(before_text.contains("Bab Satu: Pendahuluan"));
+        let fixed = fix_docx(&original, "umum").unwrap();
+        // Entri basi hilang, entri baru terisi dari heading (4).
+        let report = scan_json(&fixed, "umum");
+        assert_eq!(report["lists"]["toc_entries"], 4);
+        assert_eq!(report["lists"]["bibliography_entries"], 1);
+        let tables = report["lists"]["tables"].as_array().unwrap();
+        assert_eq!(tables.len(), 2);
+        assert!(tables.iter().all(|t| t["entries"] == 1));
+        // Pindai ulang tetap 0 masalah (info tidak dihitung).
+        let kinds = issue_kinds(&report);
+        assert!(
+            !kinds.iter().any(|k| k == "font" || k == "size" || k == "spacing" || k == "margin"),
+            "masih ada temuan: {}",
+            report["issues"]
+        );
+        // Isi identik: entri daftar (basi maupun baru) bukan isi.
+        let after_text = all_text(&Document::from_bytes(&fixed).unwrap());
+        assert_eq!(before_text, after_text);
+        assert!(!after_text.contains("ENTRI BASI"));
+        // Daftar pustaka terisi dari sumber (bukan entri basi).
+        let xml = document_xml(&fixed).unwrap();
+        assert!(xml.contains("Contoh Buku"));
+        assert!(!xml.contains("ENTRI PUSTAKA BASI"));
+    }
+
+    #[test]
+    fn perbaiki_membuatkan_daftar_isi_bila_belum_ada() {
+        // uji.docx punya heading tapi belum ada field daftar isi.
+        let original = fixture("uji.docx");
+        let before = scan_json(&original, "umum");
+        assert_eq!(before["lists"]["toc_entries"], serde_json::Value::Null);
+        let headings = before["lists"]["headings"].as_u64().unwrap();
+        assert!(headings >= 1, "uji.docx harus punya heading");
+        let messages: Vec<_> = before["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["message"].as_str().unwrap().to_string())
+            .collect();
+        assert!(messages.iter().any(|m| m == "Tidak ada daftar isi, akan dibuatkan"), "{messages:?}");
+        let fixed = fix_docx(&original, "umum").unwrap();
+        let after = scan_json(&fixed, "umum");
+        assert_eq!(after["lists"]["toc_entries"].as_u64().unwrap(), headings);
+        // Isi identik (entri daftar baru tidak dihitung sebagai isi).
+        assert_eq!(
+            all_text(&Document::from_bytes(&original).unwrap()),
+            all_text(&Document::from_bytes(&fixed).unwrap())
+        );
+    }
+
+    #[test]
+    fn dokumen_tanpa_daftar_tetap_diperbaiki() {
+        // campuran.docx: tanpa daftar apa pun, 1 heading -> dibuatkan
+        // daftar isi 1 entri; perbaikan format tetap jalan.
+        let original = fixture("campuran.docx");
+        let fixed = fix_docx(&original, "umum").unwrap();
+        let report = scan_json(&fixed, "umum");
+        assert_eq!(report["lists"]["toc_entries"], 1);
+        assert_eq!(report["lists"]["bibliography_entries"], serde_json::Value::Null);
+        assert!(report["lists"]["tables"].as_array().unwrap().is_empty());
+    }
 }
+

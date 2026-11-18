@@ -36,6 +36,7 @@ const resultSection = document.getElementById('result-section');
 const filenameInput = document.getElementById('filename');
 const downloadLink = document.getElementById('download-link');
 const rescanResult = document.getElementById('rescan-result');
+const pageNumberWarning = document.getElementById('page-number-warning');
 const remainingList = document.getElementById('remaining-list');
 const compareSection = document.getElementById('compare-section');
 const compareBody = document.getElementById('compare-body');
@@ -227,6 +228,19 @@ function summaryLines(report) {
   ];
 }
 
+function listsLine(lists) {
+  if (!lists) return '-';
+  const parts = [];
+  parts.push(lists.toc_entries == null ? 'isi: tidak ada' : `isi: ${lists.toc_entries} entri`);
+  for (const table of lists.tables || []) {
+    parts.push(`${table.label}: ${table.entries == null ? 'ada' : `${table.entries} entri`}`);
+  }
+  if (lists.bibliography_entries != null) {
+    parts.push(`pustaka: ${lists.bibliography_entries} entri`);
+  }
+  return parts.join(' · ');
+}
+
 function renderReport(report) {
   scanSummary.innerHTML = `
     <p><strong>Format:</strong> ${profileFromForm().name}</p>
@@ -235,6 +249,7 @@ function renderReport(report) {
     <p><strong>Ukuran:</strong> ${joinCounted(report.sizes)}</p>
     <p><strong>Spasi:</strong> ${joinCounted(report.spacings)}</p>
     <p><strong>Margin:</strong> ${report.margins_cm ? report.margins_cm.map((m) => m.toFixed(1).replace('.', ',')).join('-') : '-'} cm</p>
+    <p><strong>Daftar:</strong> ${listsLine(report.lists)}</p>
   `;
   issueList.innerHTML = '';
   const actionable = report.issues.filter((issue) => issue.kind !== 'info');
@@ -347,6 +362,11 @@ fixBtn.addEventListener('click', async () => {
     rescanResult.textContent = remaining.length === 0
       ? 'Hasil pindai ulang: 0 masalah tersisa.'
       : `Hasil pindai ulang: ${remaining.length} masalah tersisa.`;
+    // Peringatan nomor halaman hanya bila dokumen hasil perbaikan
+    // punya daftar isi: angkanya perkiraan, bukan angka eksak.
+    pageNumberWarning.style.display = report.lists && report.lists.toc_entries != null
+      ? 'block'
+      : 'none';
     remainingList.innerHTML = '';
     report.issues.forEach((issue) => {
       const item = document.createElement('li');

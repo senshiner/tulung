@@ -71,7 +71,8 @@ Alur: upload .docx, pilih format yang diinginkan di kolom yang disediakan (seper
 - Mesin: `rdocx` 0.17.0 (`default-features = false` + `system-fonts`). `docx-rs` 0.4.22 DITOLAK: hasil tulis-ulangnya tidak bisa dibuka LibreOffice (referensi header/footer menggantung, gambar 0 byte). Catatan build: `printpdf` menarik `fontdb` dengan fitur `fs` lewat `usvg`; tanpa `system-fonts`, `oxml-layout` gagal kompilasi (match `fontdb::Source` tidak lengkap). Jangan cabut fitur itu.
 - Aturan perbaikan: paragraf isi diubah font + ukuran + spasi; heading hanya diubah font-nya (ukuran dan spasi dipertahankan); run berukuran 14 pt ke atas dianggap judul — font diseragamkan, ukuran dipertahankan (tanpa ini judul sampul makalah ikut mengecil); semua section diubah marginnya; font bawaan dokumen (docDefaults) ikut diubah supaya run tanpa format eksplisit berubah. Header/footer hanya dilaporkan, tidak diubah (rdocx 0.17 tidak membuka API tulis untuk itu). Aspek yang tidak diatur profil (kolom dikosongkan) tidak disentuh sama sekali.
 - Mode banding: setelah perbaikan, UI menampilkan ringkasan format sebelum/sesudah dan membandingkan teks dokumen lewat `docx_text` — harus identik kata per kata.
-- Daftar isi, daftar tabel, daftar gambar dibuat ulang (Tahap 2 akhir atau Tahap 4).
+- Daftar ikut dibuat ulang saat perbaikan (2026-11-18): daftar isi yang sudah ada dibuat ulang; bila dokumen punya heading tapi belum ada daftar isi, skeleton daftar isi disisipkan di awal isi lalu dibuat ulang; daftar tabel/gambar yang sudah ada dibuat ulang; daftar pustaka yang sudah ada diperbarui. Daftar pustaka kosong baru dan daftar tabel/gambar baru TIDAK disisipkan (hanya yang sudah ada yang dibuat ulang, kecuali daftar isi). Pindai melaporkan status daftar sebagai info, bukan masalah ("Daftar isi: N entri", "Tidak ada daftar isi, akan dibuatkan"). Urutan rebuild: daftar tabel/gambar dulu, lalu daftar isi, lalu pustaka.
+- BATASAN nomor halaman: nomor halaman di daftar isi dihitung layout engine internal rdocx, disimpan sebagai cache PAGEREF; LibreOffice tidak menghitung ulang. Terukur meleset sampai 7 halaman dari 33 (metrik font). Judul dan struktur daftar benar, angka halaman bisa meleset. UI menampilkan peringatan di dekat hasil perbaikan: nomor halaman di daftar isi adalah perkiraan, perbarui field di Word atau LibreOffice untuk angka yang tepat. Produk tidak menjanjikan angka halaman eksak.
 - Mode banding sebelum/sesudah (Tahap 4).
 
 ### Tahap 3, Tulis Tangan
@@ -83,7 +84,7 @@ Profil pedoman kustom, share lewat link, mode banding sebelum/sesudah, daftar pu
 - Pembuat profil: satu formulir format kustom (bukan mode standar terpisah). Semua kolom sudah terisi angka default standar umum di awal (TNR 12, spasi 1,5, margin 4-3-3-3). Pengguna ubah yang mau diubah, kosongkan kolom yang memang tidak mau diubah.
 - Kolom yang dikosongkan berarti aspek itu memang tidak diminta diubah: pindai tidak melaporkan masalah untuk aspek itu, perbaikan tidak menyentuhnya. Urusan pengguna mau pakai default atau mengosongkan.
 - Profil disimpan sebagai JSON dan dibagikan lewat link (profil dikodekan di hash URL, tanpa akun dan tanpa server). Satu orang bikin profil pedoman kampusnya, seangkatan bisa pakai lewat link yang sama.
-- Penomoran (tabel/gambar) dan gaya sitasi masuk profil setelah riset regenerasi daftar (field TOC/SEQ) selesai.
+- Penomoran (tabel/gambar) dan gaya sitasi masuk profil setelah riset regenerasi daftar (field TOC/SEQ) selesai. Riset selesai 2026-11-18 (laporan /tmp/toc-research/LAPORAN.md) dan regenerasi daftar sudah jalan di Tahap 2; penomoran dan gaya sitasi di profil masih Tahap 4.
 
 ## 6. Aturan main
 
