@@ -1,6 +1,6 @@
 // Doc Format: shell web untuk tulung-docx (WASM).
-// Alur: baca .docx sebagai byte -> pindai dengan scan_docx() di WASM
-// -> tampilkan daftar masalah -> perbaiki dengan fix_docx() -> unduh
+// Alur: baca .docx sebagai byte -> pindai dengan scan_docx_profile() di WASM
+// -> tampilkan daftar masalah -> perbaiki dengan fix_docx_profile() -> unduh
 // + pindai ulang hasil perbaikan. Tidak ada server; isi dokumen
 // tidak berubah, hanya formatnya.
 //

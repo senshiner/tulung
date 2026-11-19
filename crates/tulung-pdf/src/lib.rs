@@ -11,12 +11,6 @@ use printpdf::{
 };
 use wasm_bindgen::prelude::*;
 
-/// Versi tulung-pdf yang sedang berjalan di browser.
-#[wasm_bindgen]
-pub fn tulung_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
-}
-
 /// DPI acuan saat menempatkan gambar (sama dengan default printpdf).
 const DPI: f32 = 300.0;
 
