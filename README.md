@@ -1,7 +1,7 @@
 <h1 align="center">Tulung</h1>
 
 <p align="center"><strong>Tugasmu, dibantu sampai beres.</strong></p>
-<p align="center">Pembantu tugas mahasiswa: gambar ke PDF, perapi dokumen .docx, tulis tangan.<br>Tanpa daftar, tanpa install. Semua proses jalan di browser.</p>
+<p align="center">Pembantu tugas mahasiswa: gambar ke PDF, Doc Format (.docx), tulis tangan.<br>Tanpa daftar, tanpa install. Semua proses jalan di browser.</p>
 
 <p align="center">
   <a href="https://github.com/senshiner/tulung/actions/workflows/ci.yml"><img src="https://github.com/senshiner/tulung/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -27,7 +27,7 @@ Bedanya dengan tools sejenis: semua pemrosesan jalan di browser lewat WebAssembl
 | Tool | Status | Keterangan |
 | --- | --- | --- |
 | Gambar ke PDF | Siap dipakai | Foto tugas jadi satu PDF A4 |
-| Doc Format | Segera | Format .docx otomatis sesuai pedoman dosen |
+| Doc Format | Siap dipakai | Format .docx otomatis sesuai pedoman dosen |
 | Tulis Tangan | Segera | Teks jadi tulisan tangan (PDF) untuk latihan dan draf |
 
 ## Mulai Cepat
@@ -67,9 +67,9 @@ crates/tulung-docx/    Mesin Doc Format (.docx), dikompilasi ke WebAssembly
 
 - **Tahap 0, Fondasi:** repo, workspace Cargo, shell web, CI. (selesai)
 - **Tahap 1, Gambar ke PDF:** port my-pdf ke Rust + WASM, perbaiki bug endpoint dan gambar tinggi. (selesai)
-- **Tahap 2, Doc Format:** pindai .docx, rapor checklist, perbaiki satu klik, isi identik kata per kata. (selesai)
+- **Tahap 2, Doc Format:** pindai .docx, rapor pindai (informasi), perbaiki satu klik, regenerasi daftar isi/tabel/gambar/pustaka, isi identik kata per kata. (selesai)
 - **Tahap 3, Tulis Tangan:** teks jadi PDF tulisan tangan.
-- **Tahap 4, Profil dan berbagi:** profil pedoman kustom, share lewat link, mode banding sebelum/sesudah.
+- **Tahap 4, Profil dan berbagi:** penomoran (tabel/gambar) dan gaya sitasi di dalam profil. (Profil kustom, share lewat link, daftar pustaka, dan mode banding sudah jadi di Tahap 2.)
 
 Perancangan lengkap ada di [docs/perancangan.md](docs/perancangan.md).
 
