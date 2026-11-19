@@ -1,6 +1,5 @@
 /target
 **/target
-web/pkg/
 web/pkg-pdf/
 web/pkg-docx/
 node_modules/

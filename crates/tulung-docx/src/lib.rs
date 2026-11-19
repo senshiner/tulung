@@ -9,12 +9,6 @@ use wasm_bindgen::prelude::*;
 
 mod docx;
 
-/// Versi tulung-docx yang sedang berjalan di browser.
-#[wasm_bindgen]
-pub fn tulung_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
-}
-
 /// Doc Format: pindai .docx terhadap preset, kembalikan laporan
 /// sebagai JSON string (dipanggil shell web `web/doc-format/app.js`).
 #[wasm_bindgen]

@@ -87,7 +87,6 @@ a { color: var(--secondary); }
 }
 
 .status-ready { background: var(--accent); }
-.status-soon { background: var(--highlight); }
 
 .tool-card a.btn,
 .tool-card button.btn {

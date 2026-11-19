@@ -13,4 +13,7 @@ crate-type = ["cdylib", "rlib"]
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 printpdf = { version = "0.8", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif"] }
+
+# Hanya dipakai tes (membuat PNG uji di #[cfg(test)]), bukan mesin WASM.
+[dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif"] }
