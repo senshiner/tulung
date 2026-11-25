@@ -1824,23 +1824,37 @@ fn fix_paragraph(
     };
     let run_count = p.run_count();
     for j in 0..run_count {
-        if let Some(mut run) = p.run_mut(j) {
+        let size_target: Option<f64> = if !heading && rules.size {
+            profile.size_pt.filter(|_| {
+                !run_sizes
+                    .get(j)
+                    .copied()
+                    .flatten()
+                    .map(|size| size >= TITLE_MIN_SIZE_PT)
+                    .unwrap_or(false)
+            })
+        } else {
+            None
+        };
+        let apply = |run: &mut rdocx::Run| {
             if let Some(target) = font_target {
                 run.set_font(target);
             }
-            if !heading && rules.size {
-                if let Some(target) = profile.size_pt {
-                    let is_title = run_sizes
-                        .get(j)
-                        .copied()
-                        .flatten()
-                        .map(|size| size >= TITLE_MIN_SIZE_PT)
-                        .unwrap_or(false);
-                    if !is_title {
-                        run.set_size(target);
-                    }
-                }
+            if let Some(target) = size_target {
+                run.set_size(target);
             }
+        };
+        if let Some(mut run) = p.run_mut(j) {
+            apply(&mut run);
+        } else if let Some(path) = p.run_path(j) {
+            // Run tersarang (di dalam revisi w:ins, hyperlink, atau
+            // content control) tidak bisa disentuh run_mut, yang
+            // hanya menerima run langsung — padahal sisi baca
+            // (pindai) melihatnya. Tanpa jalur ini, teks hasil
+            // sisipan revisi (track changes) terbaca pindai tapi
+            // diam-diam terlewat perbaikan. edit_run adalah API
+            // rdocx untuk menyunting run pada pemilik rekursifnya.
+            let _ = p.edit_run(&path, apply);
         }
     }
 }
@@ -2253,6 +2267,49 @@ mod tests {
             "masih ada temuan: {}",
             report["issues"]
         );
+    }
+
+    #[test]
+    fn font_heading_dalam_bookmark_ikut_diperbaiki() {
+        // Penjaga: run heading yang terbungkus bookmark (penanda
+        // _Toc bawaan daftar isi Word) terbaca pindai sebagai run
+        // heading dan harus ikut diperbaiki.
+        let original = fixture("heading-bookmark.docx");
+        let profile = profile_from_json(
+            r#"{"name":"Arial semua","font":"Arial","size_pt":null,"line_spacing":null,"margin_top_cm":null,"margin_right_cm":null,"margin_bottom_cm":null,"margin_left_cm":null,"heading_font":"Arial"}"#,
+        )
+        .unwrap();
+        let fixed = fix_with_profile(&original, &profile).unwrap();
+        let report = scan(&Document::from_bytes(&fixed).unwrap(), &profile, &fixed);
+        assert_eq!(report.heading_fonts.len(), 1, "font heading harus tunggal");
+        assert_eq!(report.heading_fonts[0].value, "Arial");
+    }
+
+    #[test]
+    fn font_heading_dalam_pembungkus_apa_pun_ikut_diperbaiki() {
+        // Run heading bisa terbungkus elemen lain di dokumen nyata:
+        // hyperlink, revisi sisipan (w:ins dari track changes), atau
+        // paragraf heading di dalam content control (sdt). Semua
+        // terbaca pindai; semua harus ikut diperbaiki. Kasus w:ins
+        // adalah bug yang dilaporkan pengguna: font heading yang
+        // dipilih tidak diterapkan karena run di dalam revisi hanya
+        // bisa disentuh lewat edit_run, bukan run_mut.
+        let profile = profile_from_json(
+            r#"{"name":"Arial semua","font":"Arial","size_pt":null,"line_spacing":null,"margin_top_cm":null,"margin_right_cm":null,"margin_bottom_cm":null,"margin_left_cm":null,"heading_font":"Arial"}"#,
+        )
+        .unwrap();
+        for name in [
+            "heading-hyperlink.docx",
+            "heading-ins.docx",
+            "heading-sdt.docx",
+        ] {
+            let original = fixture(name);
+            let fixed = fix_with_profile(&original, &profile).unwrap();
+            let report = scan(&Document::from_bytes(&fixed).unwrap(), &profile, &fixed);
+            assert_eq!(report.heading_fonts.len(), 1, "{name}: font heading harus tunggal");
+            assert_eq!(report.heading_fonts[0].value, "Arial", "{name}: font heading tidak berubah");
+            assert_eq!(report.heading_fonts[0].count, 1, "{name}: jumlah run heading berubah");
+        }
     }
 
     #[test]
