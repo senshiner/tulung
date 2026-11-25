@@ -1,0 +1,46 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          # Dipin ke versi yang terverifikasi lokal (lihat ci.yml).
+          version: v0.15.1
+      # --out-dir dihitung dari direktori crate (crates/tulung-pdf /
+      # crates/tulung-docx), jadi ../../web/pkg-pdf dan ../../web/pkg-docx
+      # = web/pkg-pdf dan web/pkg-docx di root repo. Tanpa ../../,
+      # pkg jatuh di crates/*/web/pkg-* dan tidak ikut ter-deploy.
+      - run: wasm-pack build --target web --out-dir ../../web/pkg-pdf crates/tulung-pdf
+      - run: wasm-pack build --target web --out-dir ../../web/pkg-docx crates/tulung-docx
+      - run: ls web/pkg-pdf/tulung_pdf.js web/pkg-docx/tulung_docx.js
+      - uses: actions/configure-pages@v5
+        with:
+          # Aktifkan Pages otomatis kalau repo belum pernah diaktifkan.
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
