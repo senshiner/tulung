@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/tulung-pdf", "crates/tulung-docx"]
+resolver = "2"

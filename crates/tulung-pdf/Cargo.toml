@@ -1,0 +1,19 @@
+[package]
+name = "tulung-pdf"
+version = "0.1.0"
+edition = "2021"
+description = "Mesin Tulung gambar ke PDF, dikompilasi ke WebAssembly."
+license = "MIT"
+repository = "https://github.com/senshiner/tulung"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+printpdf = { version = "0.8", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif"] }
+# Dipakai mesin untuk menerapkan orientasi EXIF dan rotasi manual
+# sebelum gambar disematkan ke PDF; juga dipakai tes untuk membuat
+# PNG uji.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "bmp", "gif"] }

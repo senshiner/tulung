@@ -1,0 +1,6 @@
+/target
+**/target
+web/pkg-pdf/
+web/pkg-docx/
+node_modules/
+.DS_Store

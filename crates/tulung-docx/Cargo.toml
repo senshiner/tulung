@@ -1,0 +1,24 @@
+[package]
+name = "tulung-docx"
+version = "0.1.0"
+edition = "2021"
+description = "Mesin Tulung Doc Format (.docx), dikompilasi ke WebAssembly."
+license = "MIT"
+repository = "https://github.com/senshiner/tulung"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+rdocx = { version = "0.17", default-features = false, features = ["system-fonts"] }
+# CT_P untuk paragraf footer (ContentFragment::paragraph): rdocx tidak
+# mengekspornya, jadi pakai rdocx-oxml langsung, versi sama persis
+# dengan yang dipakai rdocx 0.17.0.
+rdocx-oxml = "=0.17.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Bedah zip .docx untuk menyisip skeleton daftar isi (rdocx tidak
+# membuka API tulis untuk itu). Fitur sama seperti yang dipakai
+# oxml-opc, supaya build WASM tetap jalan.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }

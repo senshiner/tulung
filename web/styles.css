@@ -1,0 +1,311 @@
+/* Tulung: gaya neobrutalism, dipertahankan dari repo my-pdf.
+   Token: Space Mono, border 3px hitam, bayangan keras 4px,
+   primary #FF3366, secondary #3300FF, accent #33FFCC, bg #f5f5f5. */
+
+:root {
+  --primary: #ff3366;
+  --secondary: #3300ff;
+  --accent: #33ffcc;
+  --bg: #f5f5f5;
+  --ink: #000000;
+  --paper: #ffffff;
+  --highlight: #fef3c7;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Space Mono', monospace;
+  background-color: var(--bg);
+  color: var(--ink);
+  margin: 0;
+  overflow-x: hidden;
+}
+
+a { color: var(--secondary); }
+
+.brutal-border {
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 1);
+}
+
+.brutal-btn {
+  transition: transform 0.1s ease-in-out;
+  cursor: pointer;
+}
+
+.brutal-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 rgba(0, 0, 0, 1);
+}
+
+.brutal-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 1);
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.hero {
+  text-align: center;
+  padding: 48px 16px 32px;
+}
+
+.hero h1 {
+  font-size: clamp(36px, 10vw, 64px);
+  line-height: 1;
+  margin: 0 0 12px;
+}
+
+.hero p { font-size: clamp(16px, 4.5vw, 20px); margin: 8px 0; }
+
+.tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  padding: 24px 16px;
+}
+
+.tool-card {
+  background: var(--paper);
+  padding: 24px;
+}
+
+.tool-card h2 { margin: 0 0 8px; font-size: 24px; }
+.tool-card p { margin: 0 0 16px; }
+
+.tool-card .status {
+  display: inline-block;
+  padding: 2px 10px;
+  font-weight: 700;
+  border: 2px solid var(--ink);
+  margin-bottom: 16px;
+}
+
+.status-ready { background: var(--accent); }
+
+.tool-card a.btn,
+.tool-card button.btn {
+  display: inline-block;
+  padding: 10px 18px;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 16px;
+  text-decoration: none;
+  color: #fff;
+  background: var(--primary);
+  border: 3px solid var(--ink);
+  box-shadow: 4px 4px 0 0 rgba(0, 0, 0, 1);
+}
+
+.tool-card a.btn:hover,
+.tool-card button.btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 rgba(0, 0, 0, 1);
+}
+
+.tool-card a.btn:disabled,
+.tool-card button.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.drop-area {
+  display: block;
+  border: 3px dashed var(--ink);
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.drop-area.highlight { background-color: var(--highlight); }
+
+.drop-area .drop-title,
+.drop-area .drop-hint { display: block; }
+
+.drop-area .drop-title { font-size: clamp(18px, 5vw, 22px); }
+.drop-area .drop-hint { font-size: 14px; margin-top: 16px; }
+
+.pick-btn {
+  display: inline-block;
+  padding: 10px 18px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  margin-top: 16px;
+}
+
+.convert-btn {
+  padding: 14px 28px;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 20px;
+  background: var(--secondary);
+  color: #fff;
+}
+
+.convert-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.preview-item {
+  background: var(--bg);
+  padding: 8px;
+  position: relative;
+}
+
+.preview-item img {
+  width: 100%;
+  max-height: 150px;
+  object-fit: contain;
+  display: block;
+}
+
+.preview-item p {
+  font-size: 12px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-item .remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--ink);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.preview-item .move {
+  position: absolute;
+  bottom: 4px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.preview-item .move-up { right: 32px; }
+.preview-item .move-down { right: 4px; }
+
+.preview-item .rotate {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.preview-item .move:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.result-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-group { margin-top: 20px; }
+.option-group:first-child { margin-top: 0; }
+.option-label { font-weight: 700; margin: 0 0 8px; }
+.option-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.option-btn {
+  padding: 8px 14px;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  background: var(--paper);
+}
+
+.option-btn.selected { background: var(--ink); color: #fff; }
+
+.result-row input[type="text"] { flex: 1; min-width: 160px; }
+
+#pdf-preview { height: 600px; }
+
+input[type="text"] {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  padding: 8px 12px;
+  border: 2px solid var(--ink);
+}
+
+.section {
+  background: var(--paper);
+  padding: 24px;
+  margin-bottom: 32px;
+}
+
+footer {
+  border-top: 3px solid var(--ink);
+  background: var(--paper);
+  text-align: center;
+  padding: 24px 16px;
+  margin-top: 48px;
+}
+
+footer p { margin: 0; }
+
+/* HP: semua serba mengecil, tombol selebar layar. */
+@media (max-width: 640px) {
+  .container { padding: 0 12px; }
+
+  .hero { padding: 32px 8px 24px; }
+
+  .section { padding: 16px; margin-bottom: 24px; }
+
+  .tools { padding: 16px 8px; gap: 16px; }
+  .tool-card { padding: 16px; }
+
+  .drop-area { padding: 20px 12px; }
+  .pick-btn { width: 100%; padding: 12px 16px; }
+
+  .convert-btn { width: 100%; max-width: 340px; font-size: 18px; }
+
+  .preview-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+
+  .option-btn { flex: 1 1 auto; }
+
+  #pdf-preview { height: 420px; }
+
+  footer { padding: 16px 12px; margin-top: 32px; font-size: 14px; }
+}
