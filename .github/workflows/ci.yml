@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "tahap-*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          # Dipin ke versi yang terverifikasi lokal. `latest` di action ini
+          # memasang wasm-pack 0.9.1, yang wasm-opt-nya terlalu tua untuk
+          # .wasm dari rustc 1.100 (gagal "error in parsing input").
+          version: v0.15.1
+      - run: cargo test --workspace
+      # --out-dir dihitung dari direktori crate (crates/tulung-pdf /
+      # crates/tulung-docx), jadi ../../web/pkg-pdf dan ../../web/pkg-docx
+      # = web/pkg-pdf dan web/pkg-docx di root repo. Tanpa ../../,
+      # pkg jatuh di crates/*/web/pkg-* dan tidak ikut ter-deploy.
+      - run: wasm-pack build --target web --out-dir ../../web/pkg-pdf crates/tulung-pdf
+      - run: wasm-pack build --target web --out-dir ../../web/pkg-docx crates/tulung-docx
+      - run: ls web/pkg-pdf/tulung_pdf.js web/pkg-docx/tulung_docx.js
