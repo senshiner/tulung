@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gabung PDF — Tulung</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p><a href="../">&larr; Tulung</a></p>
+      <h1>GABUNG PDF</h1>
+      <p>Satukan beberapa PDF jadi satu file. Urutan file di daftar menentukan urutan halaman hasil.</p>
+    </header>
+
+    <section class="section brutal-border">
+      <label id="drop-area" class="drop-area" for="file-input">
+        <span class="drop-title"><strong>Tambah PDF</strong></span>
+        <span class="brutal-border brutal-btn pick-btn">Pilih PDF</span>
+        <span class="drop-hint">Bisa lebih dari satu file sekaligus.</span>
+        <input id="file-input" class="visually-hidden" type="file" accept="application/pdf,.pdf" multiple>
+      </label>
+
+      <div id="error" class="brutal-border" style="display:none; background:#ffcccc; padding:12px; margin-top:16px; font-weight:700;"></div>
+
+      <div id="list-section" style="display:none; margin-top:24px;">
+        <h2>FILE (<span id="count">0</span>)</h2>
+        <div id="file-list"></div>
+        <p style="margin-top:16px;">
+          <button id="clear-all" class="brutal-border brutal-btn" style="padding:8px 14px; font-family:'Space Mono',monospace; font-weight:700; background:#e5e5e5;">Hapus semua</button>
+          <span id="summary" style="font-weight:700; margin-left:12px;"></span>
+        </p>
+      </div>
+    </section>
+
+    <section class="section brutal-border" style="text-align:center;">
+      <button id="convert-btn" class="brutal-border brutal-btn convert-btn" disabled>GABUNG PDF</button>
+      <p id="loading" style="display:none; font-weight:700; margin-top:16px;">Menggabungkan PDF...</p>
+    </section>
+
+    <section id="result-section" class="section brutal-border" style="display:none;">
+      <h2>PDF SIAP</h2>
+      <p class="result-row">
+        <label style="font-weight:700;">Nama file:</label>
+        <input id="filename" type="text" value="tulung-gabung-pdf"> <strong>.pdf</strong>
+      </p>
+      <p>
+        <a id="download-link" class="brutal-border brutal-btn" style="display:inline-block; padding:10px 18px; background:#ff3366; color:#fff; font-weight:700; text-decoration:none;">Unduh PDF</a>
+      </p>
+      <div style="overflow:auto; background:#f5f5f5; padding:16px;">
+        <iframe id="pdf-preview" width="100%" style="border:2px solid #000;"></iframe>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Tulung &middot; Lisensi MIT &middot; <a href="https://github.com/senshiner/tulung">GitHub</a></p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
