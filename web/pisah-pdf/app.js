@@ -1,0 +1,112 @@
+// Pisah PDF: shell web untuk tulung-pdf (WASM).
+// Alur: baca file sebagai byte -> kirim ke pisah_pdf() di WASM
+// -> terima array byte PDF -> satu tautan unduh per file hasil.
+// Tidak ada server.
+
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input');
+const fileSection = document.getElementById('file-section');
+const fileInfo = document.getElementById('file-info');
+const rangesInput = document.getElementById('ranges');
+const convertBtn = document.getElementById('convert-btn');
+const loadingEl = document.getElementById('loading');
+const errorEl = document.getElementById('error');
+const resultSection = document.getElementById('result-section');
+const resultCount = document.getElementById('result-count');
+const resultList = document.getElementById('result-list');
+
+let pdf = null; // { name, data: Uint8Array }
+let wasmPromise = null;
+let resultUrls = [];
+
+function loadWasm() {
+  if (!wasmPromise) {
+    wasmPromise = import('../pkg-pdf/tulung_pdf.js').then(async (mod) => {
+      await mod.default();
+      return mod;
+    });
+  }
+  return wasmPromise;
+}
+
+function showError(message) {
+  errorEl.textContent = message;
+  errorEl.style.display = 'block';
+}
+
+function hideError() {
+  errorEl.style.display = 'none';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function isPdfFile(file) {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+}
+
+async function addFile(fileListInput) {
+  hideError();
+  const picked = Array.from(fileListInput).filter(isPdfFile);
+  if (!picked.length) {
+    showError('Pilih file PDF.');
+    return;
+  }
+  const file = picked[0];
+  const buffer = await file.arrayBuffer();
+  pdf = { name: file.name, data: new Uint8Array(buffer) };
+  fileInfo.textContent = `${pdf.name} (${formatSize(pdf.data.length)})`;
+  fileSection.style.display = 'block';
+  convertBtn.disabled = false;
+  resultSection.style.display = 'none';
+}
+
+fileInput.addEventListener('change', () => {
+  addFile(fileInput.files);
+  fileInput.value = '';
+});
+dropArea.addEventListener('dragover', (event) => {
+  event.preventDefault();
+  dropArea.classList.add('highlight');
+});
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('highlight'));
+dropArea.addEventListener('drop', (event) => {
+  event.preventDefault();
+  dropArea.classList.remove('highlight');
+  addFile(event.dataTransfer.files);
+});
+
+convertBtn.addEventListener('click', async () => {
+  hideError();
+  convertBtn.disabled = true;
+  loadingEl.style.display = 'block';
+  try {
+    const { pisah_pdf } = await loadWasm();
+    const parts = pisah_pdf(pdf.data, rangesInput.value.trim());
+    resultUrls.forEach((url) => URL.revokeObjectURL(url));
+    resultUrls = [];
+    resultList.innerHTML = '';
+    parts.forEach((bytes, index) => {
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      resultUrls.push(url);
+      const row = document.createElement('p');
+      row.innerHTML = `
+        <a class="brutal-border brutal-btn" href="${url}" download="tulung-pisah-${index + 1}.pdf" style="display:inline-block; padding:8px 14px; background:#ff3366; color:#fff; font-weight:700; text-decoration:none;">Unduh bagian ${index + 1}</a>
+        <span style="font-weight:700; margin-left:12px;">${formatSize(bytes.length)}</span>
+      `;
+      resultList.appendChild(row);
+    });
+    resultCount.textContent = parts.length;
+    resultSection.style.display = 'block';
+    resultSection.scrollIntoView({ behavior: 'smooth' });
+  } catch (error) {
+    showError(`Gagal memisahkan PDF: ${String(error).replace(/\.+$/, '')}. Coba muat ulang halaman.`);
+  } finally {
+    loadingEl.style.display = 'none';
+    convertBtn.disabled = !pdf;
+  }
+});

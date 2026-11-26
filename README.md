@@ -27,6 +27,11 @@ Bedanya dengan tools sejenis: semua pemrosesan jalan di browser lewat WebAssembl
 | Tool | Status | Keterangan |
 | --- | --- | --- |
 | Gambar ke PDF | Siap dipakai | Foto tugas jadi satu PDF A4 |
+| Gabung PDF | Siap dipakai | Beberapa PDF jadi satu file |
+| Pisah PDF | Siap dipakai | Rentang halaman jadi file terpisah |
+| Kompres PDF | Siap dipakai | Perkecil ukuran PDF |
+| Putar PDF | Siap dipakai | Putar halaman 90/180/270 derajat |
+| Atur Halaman | Siap dipakai | Urutkan dan hapus halaman PDF |
 | Doc Format | Siap dipakai | Format .docx otomatis sesuai pedoman dosen |
 | Tulis Tangan | Segera | Teks jadi tulisan tangan (PDF) untuk latihan dan draf |
 
@@ -53,7 +58,7 @@ Buka http://localhost:8000 di browser.
 
 ```
 web/                  Shell web (HTML + CSS + JS, gaya neobrutalism)
-crates/tulung-pdf/     Mesin gambar ke PDF, dikompilasi ke WebAssembly
+crates/tulung-pdf/     Mesin gambar ke PDF dan tool PDF, dikompilasi ke WebAssembly
 crates/tulung-docx/    Mesin Doc Format (.docx), dikompilasi ke WebAssembly
   src/lib.rs          Fungsi tiap tool, dipanggil shell lewat wasm-bindgen
 ```

@@ -14,6 +14,8 @@ use printpdf::{
 };
 use wasm_bindgen::prelude::*;
 
+pub mod ops;
+
 /// DPI acuan saat menempatkan gambar (sama dengan default printpdf).
 const DPI: f32 = 300.0;
 

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pisah PDF — Tulung</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p><a href="../">&larr; Tulung</a></p>
+      <h1>PISAH PDF</h1>
+      <p>Ambil rentang halaman menjadi file terpisah, atau pecah semua halaman menjadi satu file per halaman.</p>
+    </header>
+
+    <section class="section brutal-border">
+      <label id="drop-area" class="drop-area" for="file-input">
+        <span class="drop-title"><strong>Pilih PDF</strong></span>
+        <span class="brutal-border brutal-btn pick-btn">Pilih PDF</span>
+        <span class="drop-hint">Satu file PDF.</span>
+        <input id="file-input" class="visually-hidden" type="file" accept="application/pdf,.pdf">
+      </label>
+
+      <div id="error" class="brutal-border" style="display:none; background:#ffcccc; padding:12px; margin-top:16px; font-weight:700;"></div>
+
+      <div id="file-section" style="display:none; margin-top:24px;">
+        <h2>FILE</h2>
+        <p id="file-info" style="font-weight:700;"></p>
+        <div class="option-group">
+          <p class="option-label">Rentang halaman</p>
+          <input id="ranges" type="text" placeholder="1-3,5" style="width:100%; padding:10px; font-family:'Space Mono',monospace; font-weight:700; border:3px solid #000; box-sizing:border-box;">
+          <p style="margin:8px 0 0;">Tiap potongan menjadi satu file, contoh: 1-3,5 menghasilkan file berisi halaman 1-3 dan file berisi halaman 5. Kosongkan untuk memecah semua halaman menjadi satu file per halaman.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section brutal-border" style="text-align:center;">
+      <button id="convert-btn" class="brutal-border brutal-btn convert-btn" disabled>PISAH PDF</button>
+      <p id="loading" style="display:none; font-weight:700; margin-top:16px;">Memisahkan PDF...</p>
+    </section>
+
+    <section id="result-section" class="section brutal-border" style="display:none;">
+      <h2>FILE HASIL (<span id="result-count">0</span>)</h2>
+      <div id="result-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2026 Tulung &middot; Lisensi MIT &middot; <a href="https://github.com/senshiner/tulung">GitHub</a></p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
