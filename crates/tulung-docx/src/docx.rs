@@ -6,7 +6,8 @@
 //! font bawaan dokumen (docDefaults) supaya run tanpa format eksplisit
 //! ikut berubah. Teks isi dokumen tidak berubah: hanya format yang
 //! berubah. Daftar isi, tabel, dan gambar yang sudah ada dibangun
-//! ulang (lihat bawah), dan daftar isi dibuatkan bila belum ada.
+//! ulang (lihat bawah); daftar isi dan daftar tabel/gambar
+//! dibuatkan bila belum ada (lihat bawah).
 //!
 //! Aturan ukuran: run dengan ukuran 14 pt atau lebih dianggap judul
 //! (judul sampul, subjudul) — font-nya diseragamkan, ukurannya
@@ -16,9 +17,14 @@
 //! Perbaikan juga membuat ulang daftar: daftar isi (dari heading),
 //! daftar tabel/gambar yang sudah ada, dan daftar pustaka yang sudah
 //! ada. Dokumen yang punya heading tapi belum ada daftar isi akan
-//! dibuatkan daftar isinya di awal isi. Daftar pustaka dan daftar
-//! tabel/gambar TIDAK dibuatkan bila belum ada — hanya yang sudah ada
-//! yang dibuat ulang.
+//! dibuatkan daftar isinya di awal isi. Daftar tabel/gambar yang
+//! belum ada dibuatkan bila dokumen punya keterangan berfield SEQ
+//! berlabel Tabel/Gambar (atau Table/Figure): daftarnya disisipkan
+//! sesudah daftar isi, atau di awal isi bila tidak ada daftar isi.
+//! Keterangan yang diketik manual tanpa field SEQ tidak dikumpulkan
+//! daftar — sama seperti di Word, daftar tabel/gambar hanya membaca
+//! keterangan berfield SEQ. Daftar pustaka TIDAK dibuatkan bila
+//! belum ada — hanya yang sudah ada yang dibuat ulang.
 //!
 //! Batasan yang diketahui: header hanya dilaporkan (ada/tidak),
 //! tidak ikut diperbaiki, karena rdocx 0.17 tidak membuka API tulis
@@ -30,8 +36,9 @@
 //! semua halaman; paragraf PAGE disisip sesudah isi footer yang
 //! ada, bukan menimpanya. Sampul menampilkan footer pengguna apa
 //! adanya, tanpa tambahan nomor.
-//! Nomor halaman di daftar isi dihitung layout internal rdocx dan
-//! bisa meleset dari pagination Word / LibreOffice (terukur sampai
+//! Nomor halaman di daftar isi dan daftar tabel/gambar dihitung
+//! layout internal rdocx dan bisa meleset dari pagination
+//! Word / LibreOffice (terukur sampai
 //! 7 halaman pada dokumen 33 halaman): judul dan struktur daftar
 //! benar, angka halaman adalah perkiraan. Pengguna perlu Perbarui
 //! Field di Word/LibreOffice untuk angka eksak.
@@ -325,6 +332,10 @@ pub struct ListInfo {
     /// (label, jumlah entri) tiap daftar tabel/gambar yang sudah ada.
     /// Entri None bila jumlah tidak bisa dihitung (field sederhana).
     pub tables: Vec<ListTableInfo>,
+    /// Label field SEQ keterangan yang ada di dokumen (mis. "Tabel",
+    /// "Gambar"), urut kemunculan pertama, tanpa duplikat. Dasar
+    /// pembuatan daftar tabel/gambar yang belum ada.
+    pub caption_labels: Vec<String>,
     /// Jumlah entri daftar pustaka; None bila tidak ada fieldnya.
     pub bibliography_entries: Option<usize>,
     /// Jumlah heading (menentukan apakah daftar isi akan dibuatkan).
@@ -921,12 +932,14 @@ fn list_info(doc: &Document, bytes: &[u8]) -> ListInfo {
     let mut info = ListInfo {
         toc_entries: None,
         tables: Vec::new(),
+        caption_labels: Vec::new(),
         bibliography_entries: None,
         headings,
     };
     let Ok(xml) = document_xml(bytes) else {
         return info;
     };
+    info.caption_labels = seq_caption_labels(&xml);
     for span in field_spans(&xml) {
         match span.kind {
             FieldKind::Toc => {
@@ -950,6 +963,97 @@ fn list_info(doc: &Document, bytes: &[u8]) -> ListInfo {
         }
     }
     info
+}
+
+/// Label field SEQ yang ada di dokumen (mis. "Tabel", "Gambar"),
+/// urut kemunculan pertama, tanpa duplikat. Field SEQ adalah nomor
+/// keterangan yang ditulis Word/rdocx saat menyisipkan keterangan;
+/// daftar tabel/gambar (field TOC \c) hanya mengumpulkan keterangan
+/// berfield SEQ — keterangan yang diketik manual tanpa field tidak
+/// terbaca daftar, sama seperti di Word.
+fn seq_caption_labels(xml: &str) -> Vec<String> {
+    let mut labels: Vec<String> = Vec::new();
+    let mut check = |instr: &str| {
+        let tokens = split_field_tokens(&decode_entities(instr));
+        if tokens.first().map(String::as_str) == Some("SEQ") {
+            if let Some(label) = tokens.get(1) {
+                if !labels.contains(label) {
+                    labels.push(label.clone());
+                }
+            }
+        }
+    };
+    // Field kompleks: instruksi di elemen <w:instrText>.
+    let mut offset = 0;
+    while let Some(pos) = xml[offset..].find("<w:instrText") {
+        let tag_start = offset + pos;
+        let Some(gt) = xml[tag_start..].find('>') else { break };
+        let instr_start = tag_start + gt + 1;
+        let Some(close) = xml[instr_start..].find("</w:instrText>") else {
+            break;
+        };
+        check(&xml[instr_start..instr_start + close]);
+        offset = instr_start + close + "</w:instrText>".len();
+    }
+    // Field sederhana: instruksi di atribut w:instr <w:fldSimple>.
+    let mut offset = 0;
+    while let Some(pos) = xml[offset..].find("<w:fldSimple") {
+        let tag_start = offset + pos;
+        let Some(gt) = xml[tag_start..].find('>') else { break };
+        let tag = &xml[tag_start..tag_start + gt];
+        if let Some(start) = tag.find("w:instr=\"") {
+            let value_start = start + "w:instr=\"".len();
+            if let Some(value_end) = tag[value_start..].find('"') {
+                check(&tag[value_start..value_start + value_end]);
+            }
+        }
+        offset = tag_start + gt + 1;
+    }
+    labels
+}
+
+/// Judul daftar dan pesan pindai untuk label SEQ keterangan:
+/// (judul paragraf daftar, pesan "akan dibuatkan"). Hanya label
+/// tabel/gambar yang dibuatkan daftarnya; label lain (mis.
+/// "Persamaan") tidak.
+fn figure_list_title(label: &str) -> Option<(&'static str, &'static str)> {
+    match label.to_lowercase().as_str() {
+        "tabel" | "table" => Some(("Daftar Tabel", "Tidak ada daftar tabel, akan dibuatkan")),
+        "gambar" | "figure" => Some((
+            "Daftar Gambar",
+            "Tidak ada daftar gambar, akan dibuatkan",
+        )),
+        _ => None,
+    }
+}
+
+/// Daftar tabel/gambar yang perlu dibuatkan: (label SEQ, judul)
+/// untuk label keterangan tabel/gambar yang belum punya field
+/// daftarnya. Urutan baku daftar tabel sebelum daftar gambar; satu
+/// daftar per judul — label pertama yang cocok dipakai untuk
+/// fieldnya. Kecocokan label dengan daftar yang sudah ada persis
+/// (peka huruf besar/kecil), sama seperti pencocokan field TOC \c
+/// dengan field SEQ saat daftar dibangun ulang.
+fn missing_figure_lists(
+    caption_labels: &[String],
+    existing_labels: &[String],
+) -> Vec<(String, &'static str)> {
+    let mut missing = Vec::new();
+    for wanted in ["Daftar Tabel", "Daftar Gambar"] {
+        for label in caption_labels {
+            let Some((title, _)) = figure_list_title(label) else {
+                continue;
+            };
+            if title != wanted {
+                continue;
+            }
+            if !existing_labels.iter().any(|e| e == label) {
+                missing.push((label.clone(), title));
+            }
+            break;
+        }
+    }
+    missing
 }
 
 fn scan(doc: &Document, profile: &Profile, bytes: &[u8]) -> ScanReport {
@@ -1381,8 +1485,9 @@ fn scan(doc: &Document, profile: &Profile, bytes: &[u8]) -> ScanReport {
     }
 
     // Status daftar (hanya informasi, bukan masalah). Daftar pustaka
-    // dan daftar tabel/gambar hanya dilaporkan bila sudah ada, karena
-    // perbaikan tidak membuatkannya bila belum ada.
+    // hanya dilaporkan bila sudah ada, karena perbaikan tidak
+    // membuatkannya bila belum ada; daftar tabel/gambar juga
+    // dilaporkan bila akan dibuatkan.
     let lists = list_info(doc, bytes);
     match lists.toc_entries {
         Some(n) => issues.push(Issue {
@@ -1429,6 +1534,20 @@ fn scan(doc: &Document, profile: &Profile, bytes: &[u8]) -> ScanReport {
                 expected: String::new(),
             }),
         }
+    }
+    // Keterangan berfield SEQ tanpa field daftarnya: daftarnya akan
+    // dibuatkan perbaikan.
+    let existing_labels: Vec<String> = lists.tables.iter().map(|t| t.label.clone()).collect();
+    for (label, _) in missing_figure_lists(&lists.caption_labels, &existing_labels) {
+        let (_, message) = figure_list_title(&label).unwrap();
+        issues.push(Issue {
+            kind: "info",
+            group: "lists",
+            message: message.to_string(),
+            count: 0,
+            paragraphs: Vec::new(),
+            expected: String::new(),
+        });
     }
     if let Some(n) = lists.bibliography_entries {
         issues.push(Issue {
@@ -1527,16 +1646,25 @@ fn fix_with_rules(bytes: &[u8], profile: &Profile, rules: &ApplyRules) -> Result
     }
     // Dokumen punya heading tapi belum ada daftar isi: buatkan
     // skeleton-nya di awal isi, supaya rebuild_toc bisa mengisinya.
+    // Daftar tabel/gambar dibuatkan dengan cara yang sama bila ada
+    // keterangan berfield SEQ tapi field daftarnya belum ada.
     // (rdocx tidak bisa menyisip field kompleks multi-paragraf lewat
     // API; skeleton disisip lewat bedah zip sebelum dokumen dimuat.)
-    let has_toc = document_xml(&fixed)
-        .map(|xml| field_spans(&xml).iter().any(|s| matches!(s.kind, FieldKind::Toc)))
-        .unwrap_or(false);
+    let xml = document_xml(&fixed).unwrap_or_default();
+    let spans = field_spans(&xml);
+    let has_toc = spans.iter().any(|s| matches!(s.kind, FieldKind::Toc));
+    let existing_labels: Vec<String> = spans
+        .iter()
+        .filter(|s| matches!(s.kind, FieldKind::Figures))
+        .filter_map(|s| s.label.clone())
+        .collect();
+    let missing = missing_figure_lists(&seq_caption_labels(&xml), &existing_labels);
+    let make_toc = headings > 0 && !has_toc;
     // Lepas dokumen pertama sebelum memuat ulang: dua Document rdocx
     // hidup bersamaan pernah menghabiskan stack thread tes.
     drop(doc);
-    if headings > 0 && !has_toc {
-        fixed = insert_toc_skeleton(&fixed)?;
+    if make_toc || !missing.is_empty() {
+        fixed = insert_list_skeletons(&fixed, make_toc, has_toc, &missing)?;
     }
     let mut doc = Document::from_bytes(&fixed)
         .map_err(|err| format!("File bukan .docx yang valid: {err}"))?;
@@ -1569,16 +1697,127 @@ const TOC_SKELETON: &str = concat!(
     "<w:p><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
 );
 
-/// Sisip skeleton daftar isi tepat setelah tag <w:body> (awal isi).
-/// Semua entri zip disalin; hanya word/document.xml yang diubah.
-fn insert_toc_skeleton(bytes: &[u8]) -> Result<Vec<u8>, String> {
-    let mut xml = document_xml(bytes)?;
+/// Skeleton satu daftar tabel/gambar: paragraf judul, lalu field
+/// kompleks TOC \c dua paragraf (begin+instr+separate, lalu end) —
+/// bentuk yang sama dengan skeleton daftar isi. Instruksi meniru
+/// yang ditulis Word untuk daftar berlabel ini (lihat fixture
+/// daftar.docx): rebuild_generated_tables rdocx mengisinya dari
+/// keterangan berfield SEQ berlabel sama, lengkap dengan nomor
+/// halaman hasil layout internalnya.
+fn figures_skeleton(label: &str, title: &str) -> String {
+    format!(
+        "<w:p><w:r><w:t>{title}</w:t></w:r></w:p>\
+         <w:p><w:r><w:fldChar w:fldCharType=\"begin\"/></w:r>\
+         <w:r><w:instrText xml:space=\"preserve\"> TOC \\c {} \\p \"\\t\" \\h </w:instrText></w:r>\
+         <w:r><w:fldChar w:fldCharType=\"separate\"/></w:r></w:p>\
+         <w:p><w:r><w:fldChar w:fldCharType=\"end\"/></w:r></w:p>",
+        xml_escape_text(label),
+    )
+}
+
+/// Escape teks untuk disisipkan sebagai isi elemen XML.
+fn xml_escape_text(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// Posisi sisip di awal isi: tepat sesudah tag <w:body ...>.
+fn body_start(xml: &str) -> Result<usize, String> {
     let body = xml.find("<w:body").ok_or("Tag <w:body> tidak ketemu")?;
     let close = xml[body..]
         .find('>')
         .ok_or("Tag <w:body> tidak tertutup")?
         + body;
-    xml.insert_str(close + 1, TOC_SKELETON);
+    Ok(close + 1)
+}
+
+/// Posisi tepat sesudah paragraf penutup field daftar isi pertama
+/// (paragraf yang memuat fldChar end-nya); None bila field daftar
+/// isi tidak ketemu atau bentuknya tidak dikenali. Field sederhana
+/// (fldSimple) dicari juga.
+fn toc_field_end(xml: &str) -> Option<usize> {
+    // Field kompleks: instruksi di elemen <w:instrText>.
+    let mut offset = 0;
+    while let Some(pos) = xml[offset..].find("<w:instrText") {
+        let tag_start = offset + pos;
+        let gt = xml[tag_start..].find('>')? + tag_start;
+        let instr_start = gt + 1;
+        let close = xml[instr_start..].find("</w:instrText>")? + instr_start;
+        let instr = decode_entities(&xml[instr_start..close]);
+        if matches!(
+            classify_field(&split_field_tokens(&instr)),
+            Some((FieldKind::Toc, _))
+        ) {
+            let end = xml[close..].find("fldCharType=\"end\"")? + close;
+            return Some(xml[end..].find("</w:p>")? + end + "</w:p>".len());
+        }
+        offset = close + "</w:instrText>".len();
+    }
+    // Field sederhana: instruksi di atribut w:instr <w:fldSimple>.
+    let mut offset = 0;
+    while let Some(pos) = xml[offset..].find("<w:fldSimple") {
+        let tag_start = offset + pos;
+        let gt = xml[tag_start..].find('>')? + tag_start;
+        let tag = &xml[tag_start..gt];
+        let is_toc = tag
+            .find("w:instr=\"")
+            .and_then(|start| {
+                let value_start = start + "w:instr=\"".len();
+                let value_end = tag[value_start..].find('"')? + value_start;
+                Some(decode_entities(&tag[value_start..value_end]))
+            })
+            .map(|instr| {
+                matches!(
+                    classify_field(&split_field_tokens(&instr)),
+                    Some((FieldKind::Toc, _))
+                )
+            })
+            .unwrap_or(false);
+        if is_toc {
+            let close = xml[gt..].find("</w:fldSimple>")? + gt + "</w:fldSimple>".len();
+            return Some(xml[close..].find("</w:p>")? + close + "</w:p>".len());
+        }
+        offset = gt + 1;
+    }
+    None
+}
+
+/// Sisip skeleton daftar yang belum ada: daftar isi (bila
+/// `make_toc`) dan/atau daftar tabel/gambar (`missing`: label SEQ +
+/// judul). Daftar tabel/gambar menempel sesudah daftar isi: sesudah
+/// skeleton daftar isi yang baru disisip, atau sesudah field daftar
+/// isi yang sudah ada; bila tidak ada daftar isi sama sekali,
+/// semuanya di awal isi. Semua entri zip disalin; hanya
+/// word/document.xml yang diubah.
+fn insert_list_skeletons(
+    bytes: &[u8],
+    make_toc: bool,
+    has_toc: bool,
+    missing: &[(String, &'static str)],
+) -> Result<Vec<u8>, String> {
+    let mut xml = document_xml(bytes)?;
+    let mut insertion = String::new();
+    if make_toc {
+        insertion.push_str(TOC_SKELETON);
+    }
+    for (label, title) in missing {
+        insertion.push_str(&figures_skeleton(label, title));
+    }
+    // Daftar isi yang sudah ada tidak ikut disisip, jadi daftar baru
+    // menempel sesudah fieldnya; posisi tidak ketemu -> awal isi.
+    let at = if !make_toc && has_toc {
+        toc_field_end(&xml).unwrap_or(body_start(&xml)?)
+    } else {
+        body_start(&xml)?
+    };
+    xml.insert_str(at, &insertion);
+    rewrite_document_xml(bytes, &xml)
+}
+
+/// Tulis ulang byte .docx dengan word/document.xml baru; semua
+/// entri zip lain disalin apa adanya.
+fn rewrite_document_xml(bytes: &[u8], xml: &str) -> Result<Vec<u8>, String> {
     let mut archive =
         zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|err| err.to_string())?;
     let mut out = std::io::Cursor::new(Vec::new());
@@ -2526,6 +2765,112 @@ mod tests {
             all_text(&Document::from_bytes(&original).unwrap()),
             all_text(&Document::from_bytes(&fixed).unwrap())
         );
+    }
+
+    #[test]
+    fn perbaiki_membuatkan_daftar_tabel_dan_gambar_bila_belum_ada() {
+        // keterangan.docx: daftar isi basi 1 entri, 1 heading,
+        // keterangan SEQ Tabel dan SEQ Gambar, tanpa daftar
+        // tabel/gambar.
+        let original = fixture("keterangan.docx");
+        let before = scan_json(&original, "umum");
+        assert_eq!(before["lists"]["toc_entries"], 1);
+        assert!(before["lists"]["tables"].as_array().unwrap().is_empty());
+        let messages: Vec<_> = before["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["message"].as_str().unwrap().to_string())
+            .collect();
+        assert!(
+            messages.iter().any(|m| m == "Tidak ada daftar tabel, akan dibuatkan"),
+            "{messages:?}"
+        );
+        assert!(
+            messages.iter().any(|m| m == "Tidak ada daftar gambar, akan dibuatkan"),
+            "{messages:?}"
+        );
+        let fixed = fix_docx(&original, "umum").unwrap();
+        let after = scan_json(&fixed, "umum");
+        assert_eq!(after["lists"]["toc_entries"], 1);
+        let tables = after["lists"]["tables"].as_array().unwrap();
+        assert_eq!(tables.len(), 2);
+        let tabel = tables.iter().find(|t| t["label"] == "Tabel").unwrap();
+        assert_eq!(tabel["entries"], 1);
+        let gambar = tables.iter().find(|t| t["label"] == "Gambar").unwrap();
+        assert_eq!(gambar["entries"], 1);
+        // Urutan di dokumen: daftar tabel dan gambar sesudah field
+        // daftar isi, daftar tabel sebelum daftar gambar.
+        let xml = document_xml(&fixed).unwrap();
+        let toc_at = xml.find("TOC \\o").unwrap();
+        let tabel_at = xml.find("<w:t>Daftar Tabel</w:t>").unwrap();
+        let gambar_at = xml.find("<w:t>Daftar Gambar</w:t>").unwrap();
+        assert!(toc_at < tabel_at && tabel_at < gambar_at);
+        // Entri terisi dari keterangan, bukan teks kosong.
+        assert!(xml.contains("Contoh data"));
+        assert!(xml.contains("Contoh gambar"));
+        // Teks isi tidak berubah selain dua paragraf judul daftar.
+        let before_text = all_text(&Document::from_bytes(&original).unwrap());
+        let after_text = all_text(&Document::from_bytes(&fixed).unwrap());
+        let stripped: Vec<&str> = after_text
+            .lines()
+            .filter(|l| *l != "Daftar Tabel" && *l != "Daftar Gambar")
+            .collect();
+        assert_eq!(stripped.join("\n"), before_text);
+        // Perbaiki hasil perbaikan: daftar tidak dobel, entri tetap.
+        let refixed = fix_docx(&fixed, "umum").unwrap();
+        let reafter = scan_json(&refixed, "umum");
+        let retables = reafter["lists"]["tables"].as_array().unwrap();
+        assert_eq!(retables.len(), 2);
+        assert!(retables.iter().all(|t| t["entries"] == 1));
+    }
+
+    #[test]
+    fn keterangan_teks_saja_tidak_dibuatkan_daftar() {
+        // keterangan-teks.docx: keterangan diketik manual ("Tabel 1
+        // ..." sebagai teks biasa) tanpa field SEQ. Daftar tidak
+        // bisa mengumpulkannya (sama seperti Word), jadi tidak
+        // dibuatkan dan pindai tidak menjanjikannya.
+        let original = fixture("keterangan-teks.docx");
+        let before = scan_json(&original, "umum");
+        let messages: Vec<_> = before["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|i| i["message"].as_str().unwrap().to_string())
+            .collect();
+        assert!(
+            !messages.iter().any(|m| m == "Tidak ada daftar tabel, akan dibuatkan"),
+            "{messages:?}"
+        );
+        assert!(
+            !messages.iter().any(|m| m == "Tidak ada daftar gambar, akan dibuatkan"),
+            "{messages:?}"
+        );
+        let fixed = fix_docx(&original, "umum").unwrap();
+        let after = scan_json(&fixed, "umum");
+        assert!(after["lists"]["tables"].as_array().unwrap().is_empty());
+        let xml = document_xml(&fixed).unwrap();
+        assert!(!xml.contains("<w:t>Daftar Tabel</w:t>"));
+        assert!(!xml.contains("<w:t>Daftar Gambar</w:t>"));
+    }
+
+    #[test]
+    fn daftar_tabel_gambar_yang_sudah_ada_tidak_diduplikat() {
+        // daftar.docx sudah punya daftar tabel dan gambar: perbaikan
+        // hanya membangun ulang, tidak menyisip daftar kedua.
+        let original = fixture("daftar.docx");
+        let fixed = fix_docx(&original, "umum").unwrap();
+        let xml = document_xml(&fixed).unwrap();
+        let figures = field_spans(&xml)
+            .iter()
+            .filter(|s| matches!(s.kind, FieldKind::Figures))
+            .count();
+        assert_eq!(figures, 2);
+        // Judul sisipan akan tampak sebagai teks persis ini; fixture
+        // memakai judul kapital dari "dokumen aslinya".
+        assert!(!xml.contains("<w:t>Daftar Tabel</w:t>"));
+        assert!(!xml.contains("<w:t>Daftar Gambar</w:t>"));
     }
 
     #[test]
